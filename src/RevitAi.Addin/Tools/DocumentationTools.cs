@@ -561,7 +561,7 @@ public sealed class DimensionWallTool(RevitDispatcher dispatcher, TextSource tex
         double offset = WriteArgs.OptionalNumber(arguments, "offsetMm") ?? DefaultOffsetMm;
         long? viewId = WriteArgs.IdOrReference(T, arguments, "viewId");
         long? wallId = WriteArgs.IdOrReference(T, arguments, "wallId");
-        string viewName = viewId is null ? arguments.GetProperty("viewId").GetString()! : PlanView(document, viewId.Value).Name;
+        string viewName = viewId is null ? arguments.GetProperty("viewId").GetString()! : ViewTools.PlanView(T, document, viewId.Value).Name;
 
         string wallText = wallId is null ? arguments.GetProperty("wallId").GetString()! : T.Format("Tool.WallRef", wallId);
         string length = wallId is null
@@ -572,7 +572,7 @@ public sealed class DimensionWallTool(RevitDispatcher dispatcher, TextSource tex
 
     public override OperationResult Apply(Document document, JsonElement arguments)
     {
-        View view = PlanView(document, WriteArgs.Id(T, arguments, "viewId"));
+        View view = ViewTools.PlanView(T, document, WriteArgs.Id(T, arguments, "viewId"));
         Wall wall = WriteArgs.Wall(T, document, WriteArgs.Id(T, arguments, "wallId"));
         Line line = WriteArgs.WallLine(T, wall);
         XYZ direction = line.Direction;
@@ -599,12 +599,6 @@ public sealed class DimensionWallTool(RevitDispatcher dispatcher, TextSource tex
         Dimension dimension = document.Create.NewDimension(view, dimensionLine, references);
 
         return new OperationResult(dimension.Id.Value, T.Format("Tool.DimCreated", dimension.Id.Value, dimension.ValueString, wall.Id.Value));
-    }
-
-    private View PlanView(Document document, long id)
-    {
-        View view = document.GetElement(new ElementId(id)) as View ?? throw new ToolException(T.Format("Tool.NotAView", id));
-        return view is ViewPlan { IsTemplate: false } ? view : throw new ToolException(T.Format("Tool.ViewNotPlan", view.Name));
     }
 }
 

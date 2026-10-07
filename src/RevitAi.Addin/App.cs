@@ -132,6 +132,10 @@ public sealed class App : IExternalApplication
         registry.Register(new TagElementsTool(dispatcher, text));
         registry.Register(new CreateTextTool(dispatcher, text));
         registry.Register(new DimensionWallTool(dispatcher, text));
+        registry.Register(new DimensionRoomTool(dispatcher, text));
+        registry.Register(new CreateSectionTool(dispatcher, text));
+        registry.Register(new CreateElevationsTool(dispatcher, text));
+        registry.Register(new Create3DViewTool(dispatcher, text));
         return registry;
     }
 

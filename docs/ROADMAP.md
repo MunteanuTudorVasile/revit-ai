@@ -112,7 +112,7 @@ Success — user can say "Create a door here." without manually specifying the f
 
 ## Phase 4 — Documentation
 
-Status: implemented except room dimensions; awaiting the Phase 4 smoke tests in `SMOKE_TESTS.md`.
+Status: implemented (including sections, elevations, 3D views and room dimensions); awaiting the Phase 4 smoke tests in `SMOKE_TESTS.md`.
 
 Implement:
 

@@ -100,6 +100,11 @@ Use a test project you can throw away. After each step, check Revit's undo list 
 | 4.9 | Repeat 4.8 on a wall joined at both ends. | Either works, or fails with "Couldn't find both end faces…" and nothing changes. |
 | 4.10 | Ask "Add the text 'Verificat' near this wall." | Text note in the view near the wall. |
 | 4.11 | Switch to Română, ask "Etichetează toate camerele din această vedere." | Plan line and result message in Romanian. |
+| 4.12 | Select a wall; ask "Make a section through this wall looking north." Apply, open the section. | **Verify the look direction** matches the request and the wall is cut. If it looks the opposite way, report it: the section frame needs flipping. |
+| 4.13 | In a plan, ask "Create north and east elevations from the centre of this room." Apply. | One marker; two elevation views that really look north and east (check the marker arrows). |
+| 4.14 | Select a room; ask "Make a 3D view of this room." Apply. | 3D view with a section box around the room and its walls. |
+| 4.15 | In a plan, select a rectangular room; ask "Dimension this room." Apply. | Two dimensions (width and depth) between the inner wall faces; values match the room's clear size. |
+| 4.16 | Repeat 4.15 for an L-shaped room. | Dimensions between the outermost opposite walls, or a clear failure; nothing half-done. |
 
 ## Results
 

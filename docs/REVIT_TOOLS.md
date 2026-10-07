@@ -71,7 +71,7 @@ A plan containing many `SAFE_MODIFICATION` operations is escalated to `LARGE_MOD
 ### Documentation
 
 - `dimension_wall`
-- `dimension_room` (not yet available)
+- `dimension_room`
 - `create_text`
 - `create_tag`
 - `create_sheet`
@@ -670,8 +670,10 @@ Write (all go through plan → preview → apply):
 | `tag_elements` | `viewId`, `category` **or** `elementIds` | SAFE | Default tag per category; rooms get room tags; already tagged elements and unenclosed rooms are skipped. |
 | `create_text` | `viewId`, `position`, `text` | SAFE | Default text type; model coordinates in plans, sheet coordinates on sheets. |
 | `dimension_wall` | `viewId`, `wallId`, `offsetMm` | SAFE | Overall length between the wall's end faces; may fail for walls joined at both ends. |
-
-Not yet available: `dimension_room`, sections, elevations, 3D views.
+| `dimension_room` | `viewId`, `roomId` | SAFE | Clear width and depth between the inner faces of opposite straight walls, through the room point. |
+| `create_section` | `start`, `end`, `levelId`, `depthMm`, `heightMm`, `name` | LARGE | Looks to the **left** of start→end (verify in smoke test 4.12); default 5000 mm deep, 4000 mm high. |
+| `create_elevations` | `planViewId`, `point`, `directions` (north/east/south/west) | LARGE | One marker; each slot's real direction is checked, so no reliance on Revit's slot order. North = project +Y. |
+| `create_3d_view` | `name`, `cropToElementIds` | LARGE | Isometric; optional section box around elements + 500 mm. |
 
 ---
 
