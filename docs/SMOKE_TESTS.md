@@ -106,6 +106,20 @@ Use a test project you can throw away. After each step, check Revit's undo list 
 | 4.15 | In a plan, select a rectangular room; ask "Dimension this room." Apply. | Two dimensions (width and depth) between the inner wall faces; values match the room's clear size. |
 | 4.16 | Repeat 4.15 for an L-shaped room. | Dimensions between the outermost opposite walls, or a clear failure; nothing half-done. |
 
+## Phase 5 — model QA and moving
+
+| # | Steps | Expected |
+|---|---|---|
+| 5.1 | Ask "Check this model." | Runs several checks and summarises counts (untagged rooms, unhosted doors/windows, duplicates, warnings). No plan card; nothing changed. |
+| 5.2 | Ask "Which rooms on this view have no tag? Show them." | Lists them and selects/zooms to them in Revit. Undo list unchanged. |
+| 5.3 | Copy-paste a door onto itself (Ctrl+C, Paste Aligned → Same Place). Ask "Are there duplicates?" | Finds the pair from Revit's duplicate warning. |
+| 5.4 | Ask "What are the most common warnings in this model?" | Matches Manage → Warnings, most frequent first. |
+| 5.5 | With standards.json configured for Walls, ask "Which walls don't use our standard types?" | Lists walls with other types; says nothing can be checked if standards are empty. |
+| 5.6 | Ask "Which doors have no Mark?" | Lists doors with an empty Mark. |
+| 5.7 | Select a rectangular room; ask "Make this room 1 m wider." | Plan: move_elements on one bounding wall by 1000 mm perpendicular to it; the answer says which wall. Preview, then Apply: room area grows by ~1 m × depth; the wall's doors/windows moved with it. One undo entry. |
+| 5.8 | Pin a wall (Modify → Pin) and ask to move it. | Refused: "Element … is pinned". |
+| 5.9 | Ask "Delete the duplicate doors." | Says deleting is not available yet; offers to select them instead. |
+
 ## Results
 
 | Date | Revit version/build | Tester | Result | Notes |

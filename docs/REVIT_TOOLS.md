@@ -679,15 +679,23 @@ Write (all go through plan → preview → apply):
 
 ## 34. Analysis Tools
 
-These tools are read-only and should be preferred for model checking.
+Read-only model checks (Phase 5). All take `limit` (default 50, max 200).
 
-Examples:
+| Tool | Extra input | Finds |
+|---|---|---|
+| `find_rooms_without_tags` | `viewId` or null | Placed rooms without a room tag in that view, or in any view. |
+| `find_unhosted_doors` | | Doors with no host wall. |
+| `find_unhosted_windows` | | Windows with no host wall. |
+| `find_duplicate_elements` | | Groups from Revit's "identical instances in the same place" warnings. |
+| `get_model_warnings` | | All Revit warnings grouped by message, with counts and sample element IDs. |
+| `find_nonstandard_elements` | `category` | Elements whose type is not in standards.json for that category. |
+| `find_elements_missing_parameter` | `category`, `parameterName` | Elements where the parameter is missing or empty. |
 
-- `find_rooms_without_tags`
-- `find_unhosted_doors`
-- `find_unhosted_windows`
-- `find_duplicate_elements`
-- `find_nonstandard_elements`
+`select_elements` — `{ "elementIds": [..] }`: selects and zooms to elements so the user can see check results.
+It changes only Revit's selection, never the model, so it is `READ_ONLY` (ADR-035).
+
+Write: `move_elements` — `{ "elementIds": [..], "dxMm": 1000, "dyMm": 0 }` (SAFE). Moves elements horizontally; hosted
+doors and windows move with their wall; pinned elements are refused. Used for "make this room wider".
 
 ---
 

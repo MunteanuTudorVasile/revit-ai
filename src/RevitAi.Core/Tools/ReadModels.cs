@@ -69,6 +69,18 @@ public sealed record ViewInfo(long Id, string Name, string ViewType, string? Lev
 
 public sealed record ViewListResult(int TotalCount, bool Truncated, IReadOnlyList<ViewInfo> Views);
 
+public sealed record QaElement(ElementSummary Element, string? Reason);
+
+public sealed record QaResult(string Check, int TotalCount, bool Truncated, IReadOnlyList<QaElement> Elements, string? Note);
+
+public sealed record DuplicatesResult(int GroupCount, bool Truncated, IReadOnlyList<IReadOnlyList<ElementSummary>> Groups);
+
+public sealed record WarningGroup(string Description, int Count, IReadOnlyList<long> SampleElementIds);
+
+public sealed record WarningsResult(int TotalWarnings, int GroupCount, bool Truncated, IReadOnlyList<WarningGroup> Groups);
+
+public sealed record SelectionChangeResult(int Selected, IReadOnlyList<long> NotFound);
+
 public sealed record ParametersResult(
     long ElementId,
     IReadOnlyList<ElementParameter> Parameters,

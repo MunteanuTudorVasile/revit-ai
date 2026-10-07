@@ -456,3 +456,83 @@ public sealed class CreateFloorTool(RevitDispatcher dispatcher, TextSource text)
 
     private sealed record Inputs(Level Level, FloorType Type, IReadOnlyList<Point2> Boundary);
 }
+
+public sealed class MoveElementsTool(RevitDispatcher dispatcher, TextSource text) : RevitWriteTool(dispatcher, text)
+{
+    private const double MaxDistanceMm = 100_000;
+    private const int MaxListed = 5;
+
+    public override string Name => "move_elements";
+
+    public override string Description =>
+        "Proposes moving elements by a horizontal distance (dxMm, dyMm in model coordinates). Walls move with their hosted doors " +
+        "and windows; joined walls adjust. To make a room wider, move one of its bounding walls perpendicular to itself " +
+        "(get_room_boundary gives the walls and their positions). Pinned elements are refused.";
+
+    public override string ProgressLabel => "Checking the move…";
+
+    protected override string SchemaJson => """
+        {
+          "type": "object",
+          "properties": {
+            "elementIds": { "type": "array", "items": { "type": ["integer", "string"] }, "description": "Elements to move, or $opN.elementId references." },
+            "dxMm": { "type": "number", "description": "Move along model X, in mm." },
+            "dyMm": { "type": "number", "description": "Move along model Y, in mm." }
+          },
+          "required": ["elementIds", "dxMm", "dyMm"],
+          "additionalProperties": false
+        }
+        """;
+
+    protected override string Validate(Document document, JsonElement arguments)
+    {
+        (double dx, double dy) = Offset(arguments);
+        List<JsonElement> ids = Ids(arguments);
+        var described = new List<string>();
+        foreach (JsonElement id in ids)
+        {
+            if (id.ValueKind == JsonValueKind.Number)
+            {
+                Element element = Movable(document, id.GetInt64());
+                described.Add($"{element.Category?.Name} {element.Id.Value}");
+            }
+            else
+            {
+                described.Add(id.GetString()!);
+            }
+        }
+
+        string list = string.Join(", ", described.Take(MaxListed)) + (described.Count > MaxListed ? ", …" : "");
+        return T.Format("Tool.MoveSummary", ids.Count, dx, dy, list);
+    }
+
+    public override OperationResult Apply(Document document, JsonElement arguments)
+    {
+        (double dx, double dy) = Offset(arguments);
+        List<ElementId> ids = Ids(arguments).Select(id => Movable(document, id.GetInt64()).Id).ToList();
+        ElementTransformUtils.MoveElements(document, ids, new XYZ(RevitRead.Feet(dx), RevitRead.Feet(dy), 0));
+        return new OperationResult(ids[0].Value, T.Format("Tool.MoveDone", ids.Count, dx, dy), ids.Skip(1).Select(id => id.Value).ToList());
+    }
+
+    private (double Dx, double Dy) Offset(JsonElement arguments)
+    {
+        double dx = arguments.GetProperty("dxMm").GetDouble();
+        double dy = arguments.GetProperty("dyMm").GetDouble();
+        double distance = Math.Sqrt((dx * dx) + (dy * dy));
+        return distance < 0.5 ? throw new ToolException(T["Tool.MoveZero"])
+            : distance > MaxDistanceMm ? throw new ToolException(T.Format("Tool.MoveTooFar", WriteArgs.Mm(MaxDistanceMm)))
+            : (dx, dy);
+    }
+
+    private List<JsonElement> Ids(JsonElement arguments)
+    {
+        List<JsonElement> ids = arguments.GetProperty("elementIds").EnumerateArray().ToList();
+        return ids.Count == 0 ? throw new ToolException(T["Tool.MoveNeedsElements"]) : ids;
+    }
+
+    private Element Movable(Document document, long id)
+    {
+        Element element = RevitRead.RequireElement(document, id);
+        return element.Pinned ? throw new ToolException(T.Format("Tool.Pinned", id)) : element;
+    }
+}

@@ -118,6 +118,14 @@ public sealed class App : IExternalApplication
         registry.Register(new GetElementRoomTool(dispatcher));
         registry.Register(new GetRoomBoundaryTool(dispatcher));
         registry.Register(new FindViewsTool(dispatcher));
+        registry.Register(new FindRoomsWithoutTagsTool(dispatcher));
+        registry.Register(new FindUnhostedDoorsTool(dispatcher));
+        registry.Register(new FindUnhostedWindowsTool(dispatcher));
+        registry.Register(new FindDuplicateElementsTool(dispatcher));
+        registry.Register(new GetModelWarningsTool(dispatcher));
+        registry.Register(new FindNonstandardElementsTool(dispatcher, standardsPath));
+        registry.Register(new FindElementsMissingParameterTool(dispatcher));
+        registry.Register(new SelectElementsTool(dispatcher));
 
         registry.Register(new CreateWallTool(dispatcher, text));
         registry.Register(new ModifyWallTool(dispatcher, text));
@@ -125,6 +133,7 @@ public sealed class App : IExternalApplication
         registry.Register(new CreateDoorTool(dispatcher, text));
         registry.Register(new CreateWindowTool(dispatcher, text));
         registry.Register(new CreateFloorTool(dispatcher, text));
+        registry.Register(new MoveElementsTool(dispatcher, text));
 
         registry.Register(new CreateViewTool(dispatcher, text));
         registry.Register(new CreateSheetTool(dispatcher, text));

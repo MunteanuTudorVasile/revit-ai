@@ -133,6 +133,8 @@ Examples:
 
 ## Phase 5 — Model QA
 
+Status: implemented (checks are read-only; fixes reuse existing write tools; deleting duplicates is deferred until the destructive-action confirmation flow exists); awaiting the Phase 5 smoke tests.
+
 Implement:
 
 - rooms without tags

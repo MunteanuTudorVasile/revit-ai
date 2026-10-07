@@ -421,3 +421,19 @@ Decision: panel texts exist in English and Romanian (`UiText`); English is the d
 - Plan summaries, step outcomes and failure reasons from the write tools and the plan executor follow the panel language (`TextSource`, shared and switchable at runtime).
 - Not localized: Revit's own warnings (they come in Revit's language) and errors from read tools (seen only by the AI, which answers in the user's language).
 - A unit test enforces that every English text has a Romanian translation with the same placeholders.
+
+---
+
+## ADR-035 — Selection Is Not a Model Change
+
+Status: Accepted (2026-10-07)
+
+Decision: `select_elements` (select and zoom to elements) is a read tool. It runs immediately, without a plan or confirmation, because it changes only Revit's UI selection and view zoom, never the model or its undo history.
+
+---
+
+## ADR-036 — Model Checks Are Read-Only; No Deletes Yet
+
+Status: Accepted (2026-10-07)
+
+Decision: Phase 5 checks only report problems. Fixes use existing write tools through plan → preview → apply. Removing duplicates or orphaned elements needs `delete_element`, which is `DESTRUCTIVE`. It stays unavailable until the explicit-confirmation flow (UX risk level 4) is built, and the tool registry rejects destructive tools until then.
