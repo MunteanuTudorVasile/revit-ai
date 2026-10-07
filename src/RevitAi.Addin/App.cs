@@ -2,6 +2,7 @@ using System.IO;
 using System.Net.Http;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
 using Autodesk.Revit.UI.Events;
 using RevitAi.Addin.Context;
@@ -75,10 +76,18 @@ public sealed class App : IExternalApplication
             CreateRibbon(application);
 
             // Revit raises these events inside its API context, so reading the model directly is allowed here.
-            application.ViewActivated += (_, e) => _viewModel.UpdateContext(ContextReader.Read(e.Document));
+            // Family documents (Edit Family) are not projects; they must not reset the conversation or the plan.
+            application.ViewActivated += (_, e) =>
+            {
+                if (!e.Document.IsFamilyDocument)
+                {
+                    _viewModel.UpdateContext(ContextReader.Read(e.Document));
+                }
+            };
             application.SelectionChanged += OnSelectionChanged;
-            // If another document is still open, its ViewActivated event follows and restores the context.
-            application.ControlledApplication.DocumentClosed += (_, _) => _viewModel.UpdateContext(ModelContext.NoDocument);
+
+            // Any document closing (a family, a background project) fires this; re-read what is actually active.
+            application.ControlledApplication.DocumentClosed += (_, _) => _viewModel.RefreshContextQuietly();
 
             _log.Info($"Revit AI started in Revit {application.ControlledApplication.VersionNumber} (model {settings.OpenAiModel}).");
             return Result.Succeeded;
@@ -99,7 +108,11 @@ public sealed class App : IExternalApplication
 
     private void OnSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
-        _viewModel?.UpdateContext(ContextReader.Read(e.GetDocument()));
+        Document document = e.GetDocument();
+        if (!document.IsFamilyDocument)
+        {
+            _viewModel?.UpdateContext(ContextReader.Read(document));
+        }
     }
 
     private static ToolRegistry CreateToolRegistry(RevitDispatcher dispatcher, string standardsPath, TextSource text)

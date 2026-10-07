@@ -188,6 +188,22 @@ public sealed class AssistantViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(ContextText));
     }
 
+    /// <summary>
+    /// Re-reads the active project after Revit events that don't say which document is active (e.g. a document closed).
+    /// Failures are only logged: this is background housekeeping, not a user action.
+    /// </summary>
+    public async void RefreshContextQuietly()
+    {
+        try
+        {
+            UpdateContext(await _dispatcher.InvokeAsync(ContextReader.Read));
+        }
+        catch (Exception ex)
+        {
+            _log.Warning($"Refreshing the context failed: {ex.Message}");
+        }
+    }
+
     /// <summary>Called by the view with the PasswordBox content; the key is never bound or stored in the view model.</summary>
     public void SaveApiKey(string apiKey)
     {

@@ -15,7 +15,7 @@ public static class ContextReader
 
     private static ModelContext Read(Document? document, UIDocument? uiDocument)
     {
-        if (document is null || uiDocument is null)
+        if (document is null || uiDocument is null || document.IsFamilyDocument)
         {
             return ModelContext.NoDocument;
         }

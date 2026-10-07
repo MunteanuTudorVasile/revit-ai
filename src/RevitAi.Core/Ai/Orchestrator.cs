@@ -130,10 +130,10 @@ public sealed class Orchestrator
 
         if (tool is IWriteTool)
         {
-            int badReference = PlanReferences.Find(arguments).FirstOrDefault(n => n < 1 || n >= plan.NextNumber);
-            if (badReference != 0)
+            List<int> badReferences = PlanReferences.Find(arguments).Where(n => n < 1 || n >= plan.NextNumber).ToList();
+            if (badReferences.Count > 0)
             {
-                return (Error($"{PlanReferences.For(badReference)} does not refer to an earlier operation in this plan."), false);
+                return (Error($"{PlanReferences.For(badReferences[0])} does not refer to an earlier operation in this plan."), false);
             }
         }
 

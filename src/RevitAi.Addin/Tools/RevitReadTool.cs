@@ -42,8 +42,13 @@ public abstract class RevitReadTool : IReadTool
 /// <summary>Shared Revit → result-contract conversions. Units per ADR-026: mm, m².</summary>
 internal static class RevitRead
 {
-    public static UIDocument RequireUiDocument(UIApplication app) =>
-        app.ActiveUIDocument ?? throw new ToolException("No project is open in Revit.");
+    public static UIDocument RequireUiDocument(UIApplication app)
+    {
+        UIDocument uiDocument = app.ActiveUIDocument ?? throw new ToolException("No project is open in Revit.");
+        return uiDocument.Document.IsFamilyDocument
+            ? throw new ToolException("The active document is a family. Switch back to a project to use Revit AI.")
+            : uiDocument;
+    }
 
     public static Document RequireDocument(UIApplication app) => RequireUiDocument(app).Document;
 

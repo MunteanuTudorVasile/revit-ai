@@ -375,6 +375,7 @@ internal static class HostedPlacement
 public sealed class CreateFloorTool(RevitDispatcher dispatcher, TextSource text) : RevitWriteTool(dispatcher, text)
 {
     private const double MinEdgeMm = 10;
+    private const double MinAreaMm2 = 10_000; // 0.01 m²
 
     public override string Name => "create_floor";
 
@@ -449,6 +450,11 @@ public sealed class CreateFloorTool(RevitDispatcher dispatcher, TextSource text)
         if (!Polygon2D.IsSimple(boundary))
         {
             throw new ToolException(T["Tool.FloorSelfIntersects"]);
+        }
+
+        if (Polygon2D.Area(boundary) < MinAreaMm2)
+        {
+            throw new ToolException(T["Tool.FloorNoArea"]);
         }
 
         return new Inputs(level, type, boundary);

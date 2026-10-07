@@ -259,6 +259,22 @@ public sealed class OrchestratorTests : IDisposable
     }
 
     [Fact]
+    public async Task Reference_to_operation_zero_is_rejected()
+    {
+        var write = new FakeWriteTool();
+        _registry.Register(write);
+        var ai = new ScriptedAiClient(
+            Calls(new ToolCall("c1", "create_thing", """{ "size": 1, "hostId": "$op0.elementId" }""")),
+            Answer("Hmm."));
+
+        AssistantReply reply = await Run(Create(ai));
+
+        Assert.Contains("$op0.elementId does not refer to an earlier operation", OutputOf(ai.Requests[1], "c1"));
+        Assert.Empty(write.Validations);
+        Assert.Null(reply.Plan);
+    }
+
+    [Fact]
     public async Task Failed_validation_is_returned_to_ai_and_not_queued()
     {
         _registry.Register(new FakeWriteTool(validate: _ => throw new ToolException("Element 5 is not a level.")));

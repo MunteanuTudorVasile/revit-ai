@@ -402,10 +402,12 @@ public sealed class TagElementsTool(RevitDispatcher dispatcher, TextSource text)
     public override OperationResult Apply(Document document, JsonElement arguments)
     {
         View view = TaggableView(document, WriteArgs.Id(T, arguments, "viewId"));
+        HashSet<long> tagged = TaggedInView(document, view);
         List<Element> targets = RevitRead.OptionalString(arguments, "category") is { } categoryName
             ? UntaggedInView(document, view, RevitRead.RequireCategory(document, categoryName))
             : arguments.GetProperty("elementIds").EnumerateArray()
                 .Select(id => RevitRead.RequireElement(document, id.GetInt64()))
+                .Where(element => !tagged.Contains(element.Id.Value))
                 .ToList();
 
         var tags = new List<long>();
@@ -441,11 +443,18 @@ public sealed class TagElementsTool(RevitDispatcher dispatcher, TextSource text)
 
     private static List<Element> UntaggedInView(Document document, View view, Category category)
     {
-        List<Element> elements = new FilteredElementCollector(document, view.Id)
+        HashSet<long> tagged = TaggedInView(document, view);
+
+        // Unplaced or unenclosed rooms cannot be tagged.
+        return new FilteredElementCollector(document, view.Id)
             .OfCategoryId(category.Id)
             .WhereElementIsNotElementType()
+            .Where(e => !tagged.Contains(e.Id.Value) && e is not Room { Area: <= 0 })
             .ToList();
+    }
 
+    private static HashSet<long> TaggedInView(Document document, View view)
+    {
         var tagged = new HashSet<long>(new FilteredElementCollector(document, view.Id)
             .OfClass(typeof(IndependentTag))
             .Cast<IndependentTag>()
@@ -455,9 +464,7 @@ public sealed class TagElementsTool(RevitDispatcher dispatcher, TextSource text)
             .OfCategory(BuiltInCategory.OST_RoomTags)
             .OfType<RoomTag>()
             .Select(t => t.TaggedLocalRoomId.Value));
-
-        // Unplaced or unenclosed rooms cannot be tagged.
-        return elements.Where(e => !tagged.Contains(e.Id.Value) && e is not Room { Area: <= 0 }).ToList();
+        return tagged;
     }
 
     private static XYZ? TagPoint(Element element) => element.Location switch
@@ -535,6 +542,9 @@ public sealed class DimensionWallTool(RevitDispatcher dispatcher, TextSource tex
 {
     private const double DefaultOffsetMm = 1000;
 
+    /// <summary>End faces must be at least this fraction of the location line apart.</summary>
+    private const double MinEndSpan = 0.9;
+
     public override string Name => "dimension_wall";
 
     public override string Description =>
@@ -577,7 +587,8 @@ public sealed class DimensionWallTool(RevitDispatcher dispatcher, TextSource tex
         Line line = WriteArgs.WallLine(T, wall);
         XYZ direction = line.Direction;
 
-        // The wall's end faces are the planar faces whose normal is parallel to the wall.
+        // The wall's end faces are the planar faces whose normal is parallel to the wall. Door and window jambs are parallel too,
+        // so the outermost two must span almost the whole wall; otherwise the real ends are joined and only jambs were found.
         var options = new Options { ComputeReferences = true, IncludeNonVisibleObjects = true, View = view };
         List<PlanarFace> ends = (wall.get_Geometry(options) ?? throw new ToolException(T.Format("Tool.DimNoEnds", wall.Id.Value)))
             .OfType<Solid>()
@@ -585,7 +596,8 @@ public sealed class DimensionWallTool(RevitDispatcher dispatcher, TextSource tex
             .Where(face => face.Reference is not null && Math.Abs(Math.Abs(face.FaceNormal.DotProduct(direction)) - 1) < 1e-6)
             .OrderBy(face => face.Origin.DotProduct(direction))
             .ToList();
-        if (ends.Count < 2)
+        if (ends.Count < 2
+            || ends[^1].Origin.DotProduct(direction) - ends[0].Origin.DotProduct(direction) < MinEndSpan * line.Length)
         {
             throw new ToolException(T.Format("Tool.DimNoEnds", wall.Id.Value));
         }
