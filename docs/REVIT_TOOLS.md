@@ -71,7 +71,7 @@ A plan containing many `SAFE_MODIFICATION` operations is escalated to `LARGE_MOD
 ### Documentation
 
 - `dimension_wall`
-- `dimension_room`
+- `dimension_room` (not yet available)
 - `create_text`
 - `create_tag`
 - `create_sheet`
@@ -655,7 +655,27 @@ All three are `READ_ONLY`.
 
 ---
 
-## 33. Analysis Tools
+## 33. Documentation Tools (Phase 4)
+
+Read: `find_views` — `{ "viewType": null, "nameContains": null, "templatesOnly": false, "limit": null }` → views with ID, name,
+type, level and the sheet they are on. Title blocks and tag types are found with `find_family_types`.
+
+Write (all go through plan → preview → apply):
+
+| Tool | Input | Risk | Notes |
+|---|---|---|---|
+| `create_view` | `viewType` (`FloorPlan`/`CeilingPlan`), `levelId`, `name`, `viewTemplateId` | LARGE | Unique name per view type; template must be a view template. |
+| `create_sheet` | `number`, `name`, `titleBlockTypeId`, `viewIds` (IDs or `$opN.elementId`) | LARGE | Unique number; views placed side by side (user arranges); a view can be on one sheet only, schedules on several. |
+| `create_schedule` | `category`, `name`, `fields` | LARGE | Field names are matched at preview/apply; an unknown field fails the step and lists available fields. |
+| `tag_elements` | `viewId`, `category` **or** `elementIds` | SAFE | Default tag per category; rooms get room tags; already tagged elements and unenclosed rooms are skipped. |
+| `create_text` | `viewId`, `position`, `text` | SAFE | Default text type; model coordinates in plans, sheet coordinates on sheets. |
+| `dimension_wall` | `viewId`, `wallId`, `offsetMm` | SAFE | Overall length between the wall's end faces; may fail for walls joined at both ends. |
+
+Not yet available: `dimension_room`, sections, elevations, 3D views.
+
+---
+
+## 34. Analysis Tools
 
 These tools are read-only and should be preferred for model checking.
 
@@ -669,7 +689,7 @@ Examples:
 
 ---
 
-## 34. Tool Design Rules
+## 35. Tool Design Rules
 
 Tools must:
 

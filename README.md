@@ -2,7 +2,7 @@
 
 AI assistant add-in for Autodesk Revit 2025 and 2026. Start with [CLAUDE.md](CLAUDE.md) and [docs/](docs/); decisions are in [docs/DECISIONS.md](docs/DECISIONS.md).
 
-Current phase: **Phase 3 — context intelligence**. Answers questions, proposes walls, rooms, doors, windows and floors using the project's standard types, and understands nearby elements and rooms. The model changes only when the user clicks Apply. Panel in English or Romanian.
+Current phase: **Phase 4 — documentation**. Answers questions; proposes walls, rooms, doors, windows and floors using the project's standard types; creates views, sheets, schedules, tags, text and wall dimensions. The model changes only when the user clicks Apply. Panel in English or Romanian.
 
 ## Layout
 

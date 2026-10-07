@@ -117,6 +117,7 @@ public sealed class App : IExternalApplication
         registry.Register(new FindNearbyElementsTool(dispatcher));
         registry.Register(new GetElementRoomTool(dispatcher));
         registry.Register(new GetRoomBoundaryTool(dispatcher));
+        registry.Register(new FindViewsTool(dispatcher));
 
         registry.Register(new CreateWallTool(dispatcher, text));
         registry.Register(new ModifyWallTool(dispatcher, text));
@@ -124,6 +125,13 @@ public sealed class App : IExternalApplication
         registry.Register(new CreateDoorTool(dispatcher, text));
         registry.Register(new CreateWindowTool(dispatcher, text));
         registry.Register(new CreateFloorTool(dispatcher, text));
+
+        registry.Register(new CreateViewTool(dispatcher, text));
+        registry.Register(new CreateSheetTool(dispatcher, text));
+        registry.Register(new CreateScheduleTool(dispatcher, text));
+        registry.Register(new TagElementsTool(dispatcher, text));
+        registry.Register(new CreateTextTool(dispatcher, text));
+        registry.Register(new DimensionWallTool(dispatcher, text));
         return registry;
     }
 

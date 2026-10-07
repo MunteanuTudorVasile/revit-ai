@@ -33,6 +33,7 @@ public static class ContextReader
                 .Select(document.GetElement)
                 .Where(element => element is not null)
                 .Select(RevitRead.Summarize)
-                .ToList());
+                .ToList(),
+            ViewId: view?.Id.Value);
     }
 }

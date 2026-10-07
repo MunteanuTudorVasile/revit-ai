@@ -85,6 +85,22 @@ Use a test project you can throw away. After each step, check Revit's undo list 
 | 3.10 | Ask "Make this room 1 m wider." | Says moving walls sideways is not available yet; no plan. |
 | 3.11 | Set `"Language": "fr"` in settings.json and restart. | Panel in English; log WARN about the language. |
 
+## Phase 4 — documentation
+
+| # | Steps | Expected |
+|---|---|---|
+| 4.1 | In a floor plan with rooms, ask "Tag all rooms in this view." | Plan: "Tag N untagged Rooms in view …". Apply adds room tags at room locations; already-tagged rooms are skipped. One undo entry. |
+| 4.2 | Ask again "Tag all rooms in this view." | Says there is nothing untagged (no plan, or the step fails with that reason). |
+| 4.3 | Ask "Tag the doors in this view." | Door tags with the default door tag; if no door tag family is loaded, the step fails with Revit's reason and nothing changes. |
+| 4.4 | Ask "Create a door schedule with Mark, Family and Type, Width and Height." | Header says preview required. Preview succeeds; Apply creates the schedule with those columns. |
+| 4.5 | Ask for a schedule with a made-up field, e.g. "Door Colour". | Preview fails listing available fields. Nothing changed. |
+| 4.6 | Ask "Create a floor plan for Level 2 called 'Level 2 - AI' and put it on a new sheet A102 'Level 2'." | Plan: create_view + create_sheet referencing $op1. Preview, then Apply: the view exists and is placed on sheet A102 with the default title block. |
+| 4.7 | Ask to create a sheet with a number that already exists. | Rejected before planning: "A sheet numbered … already exists." |
+| 4.8 | Select a free-standing wall in a plan; ask "Dimension this wall." | Dimension parallel to the wall, 1 m away, value equals the wall length. |
+| 4.9 | Repeat 4.8 on a wall joined at both ends. | Either works, or fails with "Couldn't find both end faces…" and nothing changes. |
+| 4.10 | Ask "Add the text 'Verificat' near this wall." | Text note in the view near the wall. |
+| 4.11 | Switch to Română, ask "Etichetează toate camerele din această vedere." | Plan line and result message in Romanian. |
+
 ## Results
 
 | Date | Revit version/build | Tester | Result | Notes |

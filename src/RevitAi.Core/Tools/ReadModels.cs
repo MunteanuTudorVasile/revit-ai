@@ -65,6 +65,10 @@ public sealed record BoundarySegmentInfo(long? ElementId, string? Category, Poin
 
 public sealed record RoomBoundaryResult(RoomInfo Room, IReadOnlyList<IReadOnlyList<BoundarySegmentInfo>> Loops, string? Note);
 
+public sealed record ViewInfo(long Id, string Name, string ViewType, string? Level, string? SheetNumber, bool IsTemplate);
+
+public sealed record ViewListResult(int TotalCount, bool Truncated, IReadOnlyList<ViewInfo> Views);
+
 public sealed record ParametersResult(
     long ElementId,
     IReadOnlyList<ElementParameter> Parameters,

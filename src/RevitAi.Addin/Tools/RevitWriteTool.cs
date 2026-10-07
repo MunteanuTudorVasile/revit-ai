@@ -9,8 +9,12 @@ using RevitAi.Core.Tools;
 
 namespace RevitAi.Addin.Tools;
 
-/// <param name="ElementId">The element this operation created or changed; later operations can reference it.</param>
-public sealed record OperationResult(long ElementId, string Outcome);
+/// <param name="ElementId">
+/// The element this operation created or changed; later operations can reference it as <c>$opN.elementId</c>.
+/// Null when there is no single main element (e.g. several tags).
+/// </param>
+/// <param name="OtherIds">Further elements created or changed, for history and auditing.</param>
+public sealed record OperationResult(long? ElementId, string Outcome, IReadOnlyList<long>? OtherIds = null);
 
 /// <summary>
 /// A tool that proposes a model change (ADR-024). <see cref="ValidateAsync"/> checks it without changing anything;

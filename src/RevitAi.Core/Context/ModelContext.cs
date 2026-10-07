@@ -12,7 +12,8 @@ public sealed record ModelContext(
     string? ViewType,
     string? LevelName,
     int SelectionCount,
-    IReadOnlyList<ElementSummary>? SelectionPreview = null)
+    IReadOnlyList<ElementSummary>? SelectionPreview = null,
+    long? ViewId = null)
 {
     /// <summary>Selected elements included in <see cref="SelectionPreview"/>; the rest are counted only.</summary>
     public const int MaxSelectionPreview = 5;

@@ -98,8 +98,13 @@ public sealed class PlanExecutor
             return Failed(operation, reason, failures.Warnings);
         }
 
-        createdIds[operation.Number] = result.ElementId;
-        affectedIds.Add(result.ElementId);
+        if (result.ElementId is long elementId)
+        {
+            createdIds[operation.Number] = elementId;
+            affectedIds.Add(elementId);
+        }
+
+        affectedIds.AddRange(result.OtherIds ?? []);
         return new StepResult(operation.Number, operation.ToolName, true, result.Outcome, failures.Warnings);
     }
 
