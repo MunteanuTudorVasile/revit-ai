@@ -479,6 +479,21 @@ internal sealed class SelfTestScenarios
             (long a, long b) = TwoPipes(new XYZ(0, 60_000, 3000), new XYZ(2000, 60_000, 3000), new XYZ(2100, 60_200, 3000), new XYZ(4000, 60_200, 3000));
             ExpectRefused(() => _run.Validate("merge_pipes", new { pipeId1 = (object)a, pipeId2 = (object)b }));
         });
+
+        _run.Check("connect_pipes_with_tee (branch 100 mm short of the main)", () =>
+        {
+            (long main, long branch) = TwoPipes(new XYZ(0, 80_000, 3000), new XYZ(4000, 80_000, 3000), new XYZ(2000, 80_100, 3000), new XYZ(2000, 83_000, 3000));
+            PlanRunResult result = _run.ApplyOk(("connect_pipes_with_tee", new { mainPipeId = (object)main, branchPipeId = (object)branch }));
+            var tee = (FamilyInstance)_doc.GetElement(new ElementId(ElementOf(result, 1)));
+            int connected = tee.MEPModel.ConnectorManager.Connectors.Cast<Connector>().Count(c => c.IsConnected);
+            Assert(connected == 3, $"the tee has {connected} connected ends, expected 3");
+        });
+
+        _run.Check("connect_pipes_with_tee refuses pipes crossing each other", () =>
+        {
+            (long main, long branch) = TwoPipes(new XYZ(0, 90_000, 3000), new XYZ(4000, 90_000, 3000), new XYZ(2000, 89_000, 3000), new XYZ(2000, 91_000, 3000));
+            ExpectRefused(() => _run.Validate("connect_pipes_with_tee", new { mainPipeId = (object)main, branchPipeId = (object)branch }));
+        });
     }
 
     /// <summary>Two pipes from mm coordinates relative to the self-test origin (Z relative to the level).</summary>

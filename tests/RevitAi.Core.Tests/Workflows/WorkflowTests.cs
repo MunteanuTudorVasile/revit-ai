@@ -18,7 +18,7 @@ public class WorkflowTests
         "create_wall", "modify_wall", "move_elements", "delete_elements", "create_room", "create_door", "create_window",
         "create_floor", "create_view", "create_section", "create_elevations", "create_3d_view", "create_sheet",
         "create_schedule", "tag_elements", "create_text", "dimension_wall", "dimension_room", "set_parameters",
-        "apply_view_template", "report_unavailable_request", "find_grid_lines", "create_grids", "place_family_instances", "connect_pipes_with_elbow", "merge_pipes", "query_elements", "check_pipe_systems",
+        "apply_view_template", "report_unavailable_request", "find_grid_lines", "create_grids", "place_family_instances", "connect_pipes_with_elbow", "merge_pipes", "connect_pipes_with_tee", "query_elements", "check_pipe_systems",
     ];
 
     [Fact]

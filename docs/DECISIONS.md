@@ -642,3 +642,23 @@ Decision: `merge_pipes` turns two in-line pipes into one pipe (the second MEP to
   was connected there. The new length and the reconnection are verified; otherwise the plan rolls back.
 - Risk: LargeModification (Preview required), because the second pipe is removed and its own parameter values are lost.
   The plan line says so.
+
+---
+
+## ADR-050 — Connect a Branch Pipe with a Tee
+
+Status: Accepted (2026-10-08)
+
+Decision: `connect_pipes_with_tee` connects a branch pipe to the middle of a main pipe.
+
+- The geometry is Revit-free and unit-tested (`PipeTee`):
+  - the branch is perpendicular to the main pipe (within 5°), and the centerlines meet within 20 mm;
+  - the junction is inside the main pipe, at least 150 mm (or one main diameter) from its ends;
+  - the branch ends at the main pipe: pipes crossing each other are refused;
+  - the branch end moves at most 3000 mm.
+- Apply moves the branch end to the junction and splits the main pipe there (`PlumbingUtils.BreakCurve`, which copies
+  the pipe's parameters to the new part). Revit then inserts the tee from the pipe type's routing preferences
+  (`NewTeeFitting`), and all three connections are verified. Otherwise the plan rolls back.
+- Risk: SafeModification, like the elbow: nothing is deleted, and one undo reverts it.
+- Not yet: angled branches (wyes), reducing tees that the routing preferences don't cover (Revit's message is shown),
+  and cross fittings.

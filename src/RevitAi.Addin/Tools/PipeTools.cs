@@ -358,3 +358,121 @@ public sealed class MergePipesTool(RevitDispatcher dispatcher, TextSource text) 
 
     private sealed record Merge(Pipe First, Pipe Second, MergePlan Plan, ElementId? Coupling);
 }
+
+public sealed class ConnectPipesWithTeeTool(RevitDispatcher dispatcher, TextSource text) : RevitWriteTool(dispatcher, text)
+{
+    public override string Name => "connect_pipes_with_tee";
+
+    public override string Description =>
+        "Proposes connecting a branch pipe to a main pipe with a tee: the main pipe is split where the branch meets it, the " +
+        "branch is extended or trimmed to the main pipe's centerline, then Revit inserts the tee defined in the pipe type's " +
+        "routing preferences. The branch must be perpendicular to the main pipe and at the same height (for a horizontal " +
+        "branch), meet it away from its ends, end near it (pipes crossing each other are refused), be at most 3 m away, and " +
+        "its end at the junction must be free.";
+
+    public override string ProgressLabel => "Checking the tee junction…";
+
+    protected override string SchemaJson => """
+        {
+          "type": "object",
+          "properties": {
+            "mainPipeId": { "type": ["integer", "string"], "description": "The pipe that continues through the tee, or $opN.elementId." },
+            "branchPipeId": { "type": ["integer", "string"], "description": "The pipe that branches off, or $opN.elementId." }
+          },
+          "required": ["mainPipeId", "branchPipeId"],
+          "additionalProperties": false
+        }
+        """;
+
+    protected override string Validate(Document document, JsonElement arguments)
+    {
+        long? mainId = WriteArgs.IdOrReference(T, arguments, "mainPipeId");
+        long? branchId = WriteArgs.IdOrReference(T, arguments, "branchPipeId");
+        if (mainId is null || branchId is null)
+        {
+            return T.Format("Tool.TeeSummaryRef",
+                branchId?.ToString() ?? arguments.GetProperty("branchPipeId").GetString()!,
+                mainId?.ToString() ?? arguments.GetProperty("mainPipeId").GetString()!);
+        }
+
+        Tee tee = Resolve(document, mainId.Value, branchId.Value);
+        return T.Format("Tool.TeeSummary", branchId, ConnectPipesWithElbowTool.Diameter(tee.Branch), mainId,
+            ConnectPipesWithElbowTool.Diameter(tee.Main), tee.Plan.Junction.X, tee.Plan.Junction.Y, tee.Plan.Junction.Z,
+            tee.Plan.BranchChangeMm);
+    }
+
+    public override OperationResult Apply(Document document, JsonElement arguments)
+    {
+        Tee tee = Resolve(document, WriteArgs.Id(T, arguments, "mainPipeId"), WriteArgs.Id(T, arguments, "branchPipeId"));
+        var point = new XYZ(RevitRead.Feet(tee.Plan.Junction.X), RevitRead.Feet(tee.Plan.Junction.Y), RevitRead.Feet(tee.Plan.Junction.Z));
+
+        ConnectPipesWithElbowTool.MoveEnd(tee.Branch, tee.Plan.BranchEnd, point);
+        ElementId otherId = PlumbingUtils.BreakCurve(document, tee.Main.Id, point);
+        document.Regenerate();
+        var other = (Pipe)document.GetElement(otherId);
+
+        Connector main1 = ConnectPipesWithElbowTool.NearestConnector(tee.Main, point);
+        Connector main2 = ConnectPipesWithElbowTool.NearestConnector(other, point);
+        Connector branch = ConnectPipesWithElbowTool.NearestConnector(tee.Branch, point);
+        FamilyInstance fitting;
+        try
+        {
+            fitting = document.Create.NewTeeFitting(main1, main2, branch);
+        }
+        catch (Autodesk.Revit.Exceptions.ApplicationException ex)
+        {
+            throw new ToolException(T.Format("Tool.TeeFailed", ex.Message));
+        }
+
+        if (!main1.IsConnected || !main2.IsConnected || !branch.IsConnected)
+        {
+            throw new ToolException(T.Format("Tool.TeeFailed", "the tee is not connected to all three pipes"));
+        }
+
+        return new OperationResult(fitting.Id.Value,
+            T.Format("Tool.TeeDone", tee.Branch.Id.Value, tee.Main.Id.Value, fitting.Id.Value, otherId.Value),
+            [tee.Main.Id.Value, otherId.Value, tee.Branch.Id.Value]);
+    }
+
+    private Tee Resolve(Document document, long mainId, long branchId)
+    {
+        if (mainId == branchId)
+        {
+            throw new ToolException(T["Tool.PipesSame"]);
+        }
+
+        Pipe main = StraightPipe(document, mainId);
+        Pipe branch = StraightPipe(document, branchId);
+
+        // The tee body needs room on the main pipe: at least 150 mm or one main diameter from either end.
+        double minEnd = Math.Max(PipeTee.DefaultMinEndDistanceMm, UnitUtils.ConvertFromInternalUnits(main.Diameter, UnitTypeId.Millimeters));
+        TeePlan plan = PipeTee.Plan(ConnectPipesWithElbowTool.Segment(main), ConnectPipesWithElbowTool.Segment(branch), minEnd);
+        if (plan.Problem != TeeProblem.None)
+        {
+            throw new ToolException(plan.Problem switch
+            {
+                TeeProblem.NotPerpendicular => T["Tool.TeeNotPerpendicular"],
+                TeeProblem.DoNotMeet => T.Format("Tool.CornerNoMeet", WriteArgs.Mm(plan.OffsetMm)),
+                TeeProblem.NearMainEnd => T.Format("Tool.TeeNearMainEnd", WriteArgs.Mm(minEnd)),
+                TeeProblem.Crossing => T["Tool.TeeCrossing"],
+                TeeProblem.TooFar => T.Format("Tool.TeeTooFar", WriteArgs.Mm(PipeTee.DefaultMaxExtensionMm)),
+                _ => T["Tool.CornerTooShort"],
+            });
+        }
+
+        XYZ branchEnd = ((LocationCurve)branch.Location).Curve.GetEndPoint(plan.BranchEnd);
+        if (ConnectPipesWithElbowTool.NearestConnector(branch, branchEnd).IsConnected)
+        {
+            throw new ToolException(T.Format("Tool.TeeBranchConnected", branch.Id.Value));
+        }
+
+        return new Tee(main, branch, plan);
+    }
+
+    private Pipe StraightPipe(Document document, long id) =>
+        document.GetElement(new ElementId(id)) is Pipe { Location: LocationCurve { Curve: Line } } pipe
+            ? pipe
+            : throw new ToolException(T.Format("Tool.NotAPipe", id));
+
+    private sealed record Tee(Pipe Main, Pipe Branch, TeePlan Plan);
+}
