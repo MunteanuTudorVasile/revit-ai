@@ -11,7 +11,7 @@ public static class AiProviders
     /// <summary>Google's OpenAI-compatible endpoint; supports tools with strict schemas from Gemini 2.5 on.</summary>
     public static readonly AiProvider Gemini = new(
         "gemini", "Google Gemini", new Uri("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"),
-        "gemini-2.5-flash", "aistudio.google.com/apikey");
+        "gemini-3.8-flash", "aistudio.google.com/apikey");
 
     public static IReadOnlyList<AiProvider> All { get; } = [OpenAi, Gemini];
 

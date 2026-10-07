@@ -52,7 +52,7 @@ dotnet test tests/RevitAi.Core.Tests
 | Setting | Default | Meaning |
 |---|---|---|
 | `AiProvider` | `openai` | AI service: `openai` or `gemini`. Chosen in the panel's API key section. |
-| `AiModel` | null | Model override; empty uses the service default (`gpt-5` / `gemini-2.5-flash`). Set in the panel. |
+| `AiModel` | null | Model override; empty uses the service default (`gpt-5` / `gemini-3.8-flash`). Set in the panel. |
 | `AiRequestTimeoutSeconds` | 120 | How long to wait for OpenAI. |
 | `MaxAiSteps` | 12 | AI round trips per question before giving up. |
 | `DispatcherTimeoutSeconds` | 30 | How long to wait for Revit to run a request. |

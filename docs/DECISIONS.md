@@ -586,7 +586,7 @@ the same client, because Gemini offers an OpenAI-compatible Chat Completions end
 schemas (Gemini 2.5 and later).
 
 - Each service has its own DPAPI-encrypted key file (`openai.key`, `gemini.key`); a key is only sent to its own service, and a key whose prefix shows it belongs to the other service is refused with a hint.
-- An optional model override can be set in the panel; empty uses the service default (`gpt-5`, `gemini-2.5-flash`; verify the current model lists).
+- An optional model override can be set in the panel; empty uses the service default (`gpt-5`, `gemini-3.8-flash`; verify the current model lists).
 - Gemini's invalid-key answer (HTTP 400, array-shaped error body) is recognised as an invalid key.
 - Panel texts and the data notice name "the AI service you choose" instead of OpenAI (ADR-030).
 
