@@ -591,3 +591,18 @@ schemas (Gemini 2.5 and later).
 - Panel texts and the data notice name "the AI service you choose" instead of OpenAI (ADR-030).
 
 Reason: the user has no OpenAI API key; Gemini has a free tier. Further OpenAI-compatible services, or a Claude client, can be added the same way.
+
+---
+
+## ADR-047 — First MEP Tool: Connect Pipes at a Corner
+
+Status: Accepted (2026-10-08); amends ADR-028 (MEP was deferred)
+
+Decision: start MEP with `connect_pipes_with_elbow`, because the user's projects are MEP (refrigeration piping).
+
+- The corner geometry is Revit-free and unit-tested (`PipeCorner`): the two centerlines must meet within 20 mm, the meeting
+  point must be at or beyond one end of each pipe, and each pipe moves at most 3000 mm. Parallel pipes, pipes that don't
+  meet, crossings in the middle of a pipe (tees) and pipes too far away are refused with a plain-language reason.
+- Apply moves both ends to the corner and lets Revit insert the elbow from the pipe type's routing preferences
+  (`NewElbowFitting`); the result is verified (both ends connected), otherwise the plan rolls back.
+- Straight joints (couplings/merge), reducers and tees are the next MEP steps.

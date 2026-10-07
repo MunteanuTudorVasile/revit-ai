@@ -199,6 +199,14 @@ Put this in `%APPDATA%\RevitAi\standards.json` (adapt names to your project):
 | N.3 | Ask "Put a column every 6 m in a 3 × 3 grid starting at the origin on Level 1." | Plan place_family_instances with 9 points (preview required). Apply: columns at the right positions **and at the level's height** (check they are not offset vertically). |
 | N.4 | Ask for something impossible, e.g. "Read the point cloud." | Says it is not available; `%LOCALAPPDATA%\RevitAi\unmet-requests.jsonl` has a new line. |
 
+## Pipes
+
+| # | Steps | Expected |
+|---|---|---|
+| P.1 | Select two pipes that would meet at a corner (gap between their ends). Ask "Connect these with an elbow." | Plan line names both pipes, their diameters, the bend angle and how far each end moves. Preview, then Apply: an elbow from the pipe type's routing preferences, connected to both pipes. One undo entry. |
+| P.2 | Select two parallel pipes, or pipes at different heights, and ask the same. | Clear refusal explaining why (parallel / don't meet). Nothing changes. |
+| P.3 | Select a pipe and another pipe ending at its middle. | Refused: needs a tee, not available yet. |
+
 ## Results
 
 | Date | Revit version/build | Tester | Result | Notes |

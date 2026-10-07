@@ -44,6 +44,7 @@ internal sealed class SelfTestScenarios
         Spatial();
         Documentation();
         GridsAndPlacement();
+        Pipes();
         Safety();
     }
 
@@ -409,6 +410,51 @@ internal sealed class SelfTestScenarios
             var names = new FilteredElementCollector(_doc).OfClass(typeof(Grid)).Select(g => g.Name).ToHashSet();
             Assert(lines.SuggestedGrids.All(g => names.Contains(g.Name)), "not all suggested grids were created");
         });
+    }
+
+    private void Pipes()
+    {
+        _run.Area("Pipes");
+
+        _run.Check("connect_pipes_with_elbow (right-angle corner with gaps)", () =>
+        {
+            (long first, long second) = TwoPipes(new XYZ(0, 20_000, 3000), new XYZ(4880, 20_000, 3000), new XYZ(5000, 20_080, 3000), new XYZ(5000, 24_000, 3000));
+            PlanRunResult result = _run.ApplyOk(("connect_pipes_with_elbow", new { pipeId1 = (object)first, pipeId2 = (object)second }));
+            var elbow = (FamilyInstance)_doc.GetElement(new ElementId(ElementOf(result, 1)));
+            int connected = elbow.MEPModel.ConnectorManager.Connectors.Cast<Connector>().Count(c => c.IsConnected);
+            Assert(connected == 2, $"the elbow has {connected} connected ends, expected 2");
+        });
+
+        _run.Check("connect_pipes_with_elbow refuses a tee (crossing mid-pipe)", () =>
+        {
+            (long main, long branch) = TwoPipes(new XYZ(0, 30_000, 3000), new XYZ(4000, 30_000, 3000), new XYZ(2000, 30_100, 3000), new XYZ(2000, 33_000, 3000));
+            ExpectRefused(() => _run.Validate("connect_pipes_with_elbow", new { pipeId1 = (object)main, pipeId2 = (object)branch }));
+        });
+    }
+
+    /// <summary>Two pipes from mm coordinates relative to the self-test origin (Z relative to the level).</summary>
+    private (long First, long Second) TwoPipes(XYZ a1, XYZ a2, XYZ b1, XYZ b2)
+    {
+        Level level = LevelOrSkip();
+        ElementId system = new FilteredElementCollector(_doc).OfClass(typeof(Autodesk.Revit.DB.Plumbing.PipingSystemType)).FirstElementId();
+        ElementId type = new FilteredElementCollector(_doc).OfClass(typeof(Autodesk.Revit.DB.Plumbing.PipeType)).FirstElementId();
+        if (system == ElementId.InvalidElementId || type == ElementId.InvalidElementId)
+        {
+            throw Skip("no piping system type or pipe type in the project");
+        }
+
+        XYZ At(XYZ p) => new(
+            UnitUtils.ConvertToInternalUnits(Origin + p.X, UnitTypeId.Millimeters),
+            UnitUtils.ConvertToInternalUnits(Origin + p.Y, UnitTypeId.Millimeters),
+            level.ProjectElevation + UnitUtils.ConvertToInternalUnits(p.Z, UnitTypeId.Millimeters));
+
+        long first = 0, second = 0;
+        _run.Modify("Self-test pipes", () =>
+        {
+            first = Autodesk.Revit.DB.Plumbing.Pipe.Create(_doc, system, type, level.Id, At(a1), At(a2)).Id.Value;
+            second = Autodesk.Revit.DB.Plumbing.Pipe.Create(_doc, system, type, level.Id, At(b1), At(b2)).Id.Value;
+        });
+        return (first, second);
     }
 
     private void Safety()
