@@ -125,6 +125,42 @@ Use a test project you can throw away. After each step, check Revit's undo list 
 | 5.13 | Ask to delete a level, a view or a pinned wall. | Refused before any plan, with the reason. |
 | 5.14 | Ask "Make this room wider" and check the plan. | No delete_elements in the plan (deletes never appear as a side effect). |
 
+## Phase 6 — company standards
+
+Put this in `%APPDATA%\RevitAi\standards.json` (adapt names to your project):
+
+```json
+{
+  "default": { "Walls": ["<your standard interior wall type>"] },
+  "rules": {
+    "roomNames": ["Living", "Kitchen", "Bedroom", "Bathroom"],
+    "sheetNumberPattern": "^A\\d{3}$",
+    "requiredParameters": { "Doors": ["Mark"] },
+    "viewTemplates": { "FloorPlan": "<an existing plan view template>" }
+  }
+}
+```
+
+| # | Steps | Expected |
+|---|---|---|
+| 6.1 | Ask "Check our standards." | Violations per rule with counts (room names, sheet numbers, door Mark, plan templates, wall types). Nothing changed. |
+| 6.2 | Put an invalid pattern (`"^A("`) in sheetNumberPattern; ask again. | The rule is reported as a problem, not silently passed. |
+| 6.3 | Ask "Apply the standard template to the plans that don't use it." | Plan with apply_view_template; Apply sets the template; check in Properties. |
+| 6.4 | Ask "Set the Mark of these doors to D-01" (select one door). | Plan with set_parameters (preview required). Apply sets Mark. |
+| 6.5 | Ask "Rename this room to Bedroom." | set_parameters on 'Name'; afterwards check_standards no longer lists it. |
+| 6.6 | Select pipes or ducts (if any) and ask to set a size in mm. | The value in Revit equals the mm asked (not feet), or the change is refused with a units message. |
+| 6.7 | Ask "Create a room called Office." | The AI notes Office is not an allowed name and asks or picks an allowed one. |
+
+## Phase 7 — workflows
+
+| # | Steps | Expected |
+|---|---|---|
+| 7.1 | In a plan view ask "Prepare this floor for documentation." | Log shows get_workflow, then one plan: tags, room dimensions, a sheet numbered per the pattern with the view placed (and a template if required). Preview required. Apply: one undo entry. |
+| 7.2 | Ask "QA this floor." | Summary per check with counts; offers to select; no plan unless you ask to fix. |
+| 7.3 | Ask "Create a 4 × 3 m bedroom with a door at the corner of this wall." | One plan: 4 walls (standard type), room named Bedroom, door in the requested wall. |
+| 7.4 | Ask "Create a sheet set for all levels." | One plan: a plan view (if missing) and a sheet per level, numbered sequentially per the pattern. |
+| 7.5 | Ask "Fix our standards." | Fixes only the unambiguous items (templates); lists room-name and sheet-number violations and asks before renaming. No deletes. |
+
 ## Results
 
 | Date | Revit version/build | Tester | Result | Notes |

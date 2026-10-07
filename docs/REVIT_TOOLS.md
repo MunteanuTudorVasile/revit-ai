@@ -702,7 +702,24 @@ doors and windows move with their wall; pinned elements are refused. Used for "m
 
 ---
 
-## 35. Tool Design Rules
+## 35. Standards and Workflows (Phases 6–7)
+
+Read:
+
+- `get_project_standards` — `{}`: effective rules and standard types for this project (ADR-038).
+- `check_standards` — `{ "limit": null }`: violations per rule (room names, sheet numbers, view names, view templates, required parameters, standard types) plus problems in the standards file.
+- `get_workflow` — `{ "name": "prepare_floor_for_documentation" | "qa_floor" | "create_room_with_walls" | "create_sheet_set" | "fix_standards" }`: the recipe to follow (ADR-039).
+
+Write:
+
+| Tool | Input | Risk | Notes |
+|---|---|---|---|
+| `set_parameters` | `elementIds`, `parameterName`, `value` (string, number or boolean) | LARGE | Same value on up to 200 elements; instance parameters only; numbers in mm/m²/degrees/m³ (other units refused); also renames (`Name`, `Number`, `View Name`, `Sheet Number`, `Sheet Name`). |
+| `apply_view_template` | `viewIds`, `templateId` | SAFE | Checks Revit accepts the template for each view. |
+
+---
+
+## 36. Tool Design Rules
 
 Tools must:
 

@@ -94,6 +94,15 @@ public sealed class AddinSettingsTests : IDisposable
     }
 
     [Fact]
+    public void Only_values_that_differ_from_defaults_are_saved()
+    {
+        new AddinSettings { Language = "ro" }.Save(SettingsPath);
+
+        using var json = System.Text.Json.JsonDocument.Parse(File.ReadAllText(SettingsPath));
+        Assert.Equal(["Language"], json.RootElement.EnumerateObject().Select(p => p.Name));
+    }
+
+    [Fact]
     public void Unsupported_language_falls_back_to_english()
     {
         Directory.CreateDirectory(_dir);

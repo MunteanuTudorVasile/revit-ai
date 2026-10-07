@@ -150,6 +150,8 @@ Example: "Check this floor." → "12 issues found."
 
 ## Phase 6 — Project Standards
 
+Status: implemented (ADR-038); awaiting the Phase 6 smoke tests.
+
 Implement:
 
 - standard families
@@ -164,6 +166,8 @@ Example: "Check this project against company standards."
 ---
 
 ## Phase 7 — Workflow Automation
+
+Status: implemented as fixed recipes (ADR-039); awaiting the Phase 7 smoke tests.
 
 Implement high-level workflows:
 

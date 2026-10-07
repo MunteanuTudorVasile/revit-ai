@@ -2,7 +2,7 @@
 
 AI assistant add-in for Autodesk Revit 2025 and 2026. Start with [CLAUDE.md](CLAUDE.md) and [docs/](docs/); decisions are in [docs/DECISIONS.md](docs/DECISIONS.md).
 
-Current phase: **Phase 5 — model QA** (plus moving elements). Answers questions; proposes walls, rooms, doors, windows and floors using the project's standard types; creates views, sheets, schedules, tags, text and wall dimensions. The model changes only when the user clicks Apply. Panel in English or Romanian.
+Status: **Phases 0–7 implemented** (foundation, read-only AI, modeling, context, documentation, model QA, company standards, workflows), plus deleting with confirmation. Nothing has been run inside Revit yet: next step is the smoke tests. Answers questions; proposes walls, rooms, doors, windows and floors using the project's standard types; creates views, sheets, schedules, tags, text and wall dimensions. The model changes only when the user clicks Apply. Panel in English or Romanian.
 
 ## Layout
 
@@ -51,12 +51,12 @@ dotnet test tests/RevitAi.Core.Tests
 |---|---|---|
 | `OpenAiModel` | `gpt-5` | OpenAI model used for answers. |
 | `AiRequestTimeoutSeconds` | 120 | How long to wait for OpenAI. |
-| `MaxAiSteps` | 8 | AI round trips per question before giving up. |
+| `MaxAiSteps` | 12 | AI round trips per question before giving up. |
 | `DispatcherTimeoutSeconds` | 30 | How long to wait for Revit to run a request. |
 | `Language` | `en` | Panel language: `en` or `ro`. Also switchable from the panel. |
 | `ConsentAcceptedAt` | null | Set when the user accepts the data notice. |
 
-Restart Revit after editing.
+`settings.json` only contains values you changed; anything missing uses the default above. Restart Revit after editing.
 
 ## Notes
 

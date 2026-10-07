@@ -79,7 +79,10 @@ internal static class RevitRead
         ?? throw new ToolException($"No category named '{name}'. Use the category name as shown in Revit, e.g. Walls, Doors, Rooms.");
 
     public static RoomInfo DescribeRoom(Room room) =>
-        new(room.Id.Value, NullIfEmpty(room.Number), NullIfEmpty(room.Name), room.Level?.Name, M2(room.Area));
+        new(room.Id.Value, NullIfEmpty(room.Number), RoomName(room), room.Level?.Name, M2(room.Area));
+
+    /// <summary>The room's name alone; <c>Room.Name</c> returns name and number together ("Bedroom 101").</summary>
+    public static string? RoomName(Room room) => NullIfEmpty(room.get_Parameter(BuiltInParameter.ROOM_NAME)?.AsString());
 
     public static long? OptionalLong(JsonElement arguments, string name) =>
         arguments.TryGetProperty(name, out JsonElement value) && value.ValueKind == JsonValueKind.Number ? value.GetInt64() : null;

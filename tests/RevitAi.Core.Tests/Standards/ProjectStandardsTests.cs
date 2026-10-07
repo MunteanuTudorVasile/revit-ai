@@ -74,4 +74,98 @@ public sealed class ProjectStandardsTests : IDisposable
     {
         Assert.Equal(expected, ProjectStandards.Matches(entry, "Basic Wall", "Interior - 100mm"));
     }
+
+    [Fact]
+    public void Project_rules_override_only_the_rules_they_set()
+    {
+        ProjectStandards standards = Load("""
+            {
+              "rules": { "roomNames": ["Living", "Bedroom"], "sheetNumberPattern": "^A\\d{3}$" },
+              "projectRules": { "House": { "sheetNumberPattern": "^H-\\d{2}$" } }
+            }
+            """);
+
+        StandardsRules house = standards.RulesFor("House.rvt", out IReadOnlyList<string> problems);
+        StandardsRules office = standards.RulesFor("Office.rvt", out _);
+
+        Assert.Empty(problems);
+        Assert.Equal("^H-\\d{2}$", house.SheetNumberPattern);
+        Assert.Equal(["Living", "Bedroom"], house.RoomNames);
+        Assert.Equal("^A\\d{3}$", office.SheetNumberPattern);
+    }
+
+    [Fact]
+    public void Invalid_patterns_are_dropped_and_reported()
+    {
+        ProjectStandards standards = Load("""
+            { "rules": { "sheetNumberPattern": "^A(", "viewNamePatterns": { "FloorPlan": "[", "Section": "^S" } } }
+            """);
+
+        StandardsRules rules = standards.RulesFor("House.rvt", out IReadOnlyList<string> problems);
+
+        Assert.Null(rules.SheetNumberPattern);
+        Assert.Equal(["Section"], rules.ViewNamePatterns!.Keys);
+        Assert.Equal(2, problems.Count);
+    }
+
+    [Fact]
+    public void Empty_file_has_no_rules()
+    {
+        Assert.True(Load("{}").RulesFor("House.rvt", out _).IsEmpty);
+    }
+
+    [Theory]
+    [InlineData("Bedroom", true)]
+    [InlineData(" bedroom ", true)]
+    [InlineData("Bed room", false)]
+    [InlineData(null, false)]
+    public void Room_names_are_checked_against_the_list(string? name, bool expected)
+    {
+        var rules = new StandardsRules { RoomNames = ["Living", "Bedroom"] };
+
+        Assert.Equal(expected, ProjectStandards.IsAllowedRoomName(rules, name));
+    }
+
+    [Fact]
+    public void Any_room_name_is_allowed_without_a_list()
+    {
+        Assert.True(ProjectStandards.IsAllowedRoomName(new StandardsRules(), "Whatever"));
+    }
+
+    [Theory]
+    [InlineData("A101", true)]
+    [InlineData("A1011", false)]
+    [InlineData("B101", false)]
+    [InlineData(null, false)]
+    public void Sheet_numbers_are_matched_against_the_pattern(string? number, bool expected)
+    {
+        Assert.Equal(expected, ProjectStandards.MatchesPattern("^A\\d{3}$", number));
+    }
+
+    [Fact]
+    public void Pattern_too_slow_to_evaluate_returns_null()
+    {
+        Assert.Null(ProjectStandards.MatchesPattern("^(a+)+$", new string('a', 40) + "!"));
+    }
+
+    [Fact]
+    public void Template_file_has_no_computed_or_null_rules()
+    {
+        ProjectStandards.Load(FilePath, out _);
+
+        string template = File.ReadAllText(FilePath);
+        Assert.DoesNotContain("isEmpty", template);
+        Assert.DoesNotContain("null", template);
+    }
+
+    [Fact]
+    public void Type_categories_include_default_and_project_lists()
+    {
+        ProjectStandards standards = Load("""
+            { "default": { "Walls": ["Interior"] }, "projects": { "House": { "Doors": ["Single"] } } }
+            """);
+
+        Assert.Equal(["Walls", "Doors"], standards.TypeCategories("House.rvt"));
+        Assert.Equal(["Walls"], standards.TypeCategories("Office.rvt"));
+    }
 }

@@ -21,6 +21,27 @@ internal static class Qa
     public static QaResult Result(string check, IReadOnlyList<QaElement> found, int limit, string? note = null) =>
         new(check, found.Count, found.Count > limit, found.Take(limit).ToList(), note);
 
+    /// <summary>Why the element fails a "parameter must have a value" rule, or null when it has a value.</summary>
+    public static string? MissingParameterReason(Document document, Element element, string parameterName)
+    {
+        Parameter? parameter = element.LookupParameter(parameterName)
+            ?? document.GetElement(element.GetTypeId())?.LookupParameter(parameterName);
+        return parameter is null ? $"Parameter '{parameterName}' missing"
+            : !parameter.HasValue || (parameter.StorageType == StorageType.String && string.IsNullOrWhiteSpace(parameter.AsString()))
+                ? $"'{parameterName}' has no value"
+                : null;
+    }
+
+    /// <summary>Elements of the category whose type is not one of the preferred entries.</summary>
+    public static List<QaElement> NonStandardTypes(Document document, Category category, IReadOnlyList<string> preferred) =>
+        new FilteredElementCollector(document)
+            .OfCategoryId(category.Id)
+            .WhereElementIsNotElementType()
+            .Where(e => document.GetElement(e.GetTypeId()) is ElementType type
+                        && !preferred.Any(entry => ProjectStandards.Matches(entry, type.FamilyName, type.Name)))
+            .Select(e => new QaElement(RevitRead.Summarize(e), "Type not in standards"))
+            .ToList();
+
     public const string LimitOnlySchema = """
         {
           "type": "object",
@@ -209,15 +230,7 @@ public sealed class FindNonstandardElementsTool(RevitDispatcher dispatcher, stri
                 problem ?? $"No standard {category.Name} types are configured in standards.json, so nothing can be checked.");
         }
 
-        List<QaElement> nonstandard = new FilteredElementCollector(document)
-            .OfCategoryId(category.Id)
-            .WhereElementIsNotElementType()
-            .Where(e => document.GetElement(e.GetTypeId()) is ElementType type
-                        && !preferred.Any(entry => ProjectStandards.Matches(entry, type.FamilyName, type.Name)))
-            .Select(e => new QaElement(RevitRead.Summarize(e), "Type not in standards"))
-            .ToList();
-
-        return Qa.Result(Name, nonstandard, Qa.Limit(arguments));
+        return Qa.Result(Name, Qa.NonStandardTypes(document, category, preferred), Qa.Limit(arguments));
     }
 }
 
@@ -250,19 +263,13 @@ public sealed class FindElementsMissingParameterTool(RevitDispatcher dispatcher)
         Category category = RevitRead.RequireCategory(document, arguments.GetProperty("category").GetString()!);
         string parameterName = arguments.GetProperty("parameterName").GetString()!;
 
-        var found = new List<QaElement>();
-        foreach (Element element in new FilteredElementCollector(document).OfCategoryId(category.Id).WhereElementIsNotElementType())
-        {
-            Parameter? parameter = element.LookupParameter(parameterName)
-                ?? document.GetElement(element.GetTypeId())?.LookupParameter(parameterName);
-            string? reason = parameter is null ? "Parameter missing"
-                : !parameter.HasValue || (parameter.StorageType == StorageType.String && string.IsNullOrWhiteSpace(parameter.AsString())) ? "No value"
-                : null;
-            if (reason is not null)
-            {
-                found.Add(new QaElement(RevitRead.Summarize(element), reason));
-            }
-        }
+        List<QaElement> found = new FilteredElementCollector(document)
+            .OfCategoryId(category.Id)
+            .WhereElementIsNotElementType()
+            .Select(e => (Element: e, Reason: Qa.MissingParameterReason(document, e, parameterName)))
+            .Where(x => x.Reason is not null)
+            .Select(x => new QaElement(RevitRead.Summarize(x.Element), x.Reason))
+            .ToList();
 
         return Qa.Result(Name, found, Qa.Limit(arguments));
     }

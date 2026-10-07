@@ -451,3 +451,41 @@ Decision: `delete_elements` is the first `DESTRUCTIVE` tool (UX risk level 4).
 - Only model elements and annotations can be deleted, at most 200 per plan. Element types, views, sheets, levels, grids and pinned elements are refused.
 - The AI may plan a deletion only when the user explicitly asks to delete; never as a side effect.
 - The deletion is still one undo entry (Ctrl+Z), and the history records every deleted ID.
+
+---
+
+## ADR-038 — Company Rules in standards.json
+
+Status: Accepted (2026-10-07)
+
+Decision: `standards.json` (ADR-033) also holds rules, with optional per-project overrides:
+
+```json
+{
+  "rules": {
+    "roomNames": ["Living", "Kitchen", "Bedroom", "Bathroom"],
+    "sheetNumberPattern": "^A\\d{3}$",
+    "viewNamePatterns": { "FloorPlan": "^Level \\d+ - " },
+    "requiredParameters": { "Doors": ["Mark", "Fire Rating"] },
+    "viewTemplates": { "FloorPlan": "Architectural Plan" }
+  },
+  "projectRules": { "House": { "sheetNumberPattern": "^H-\\d{2}$" } }
+}
+```
+
+- `check_standards` evaluates every configured rule plus the standard types and reports violations per rule. `get_project_standards` gives the AI the rules so it follows them when naming and creating.
+- Invalid regular expressions, unknown view types or categories, and patterns that take too long to evaluate are reported as problems, never silently treated as passing.
+- Fixes go through plan → preview → apply: `apply_view_template`, and `set_parameters` for values and renames. `set_parameters` is `LARGE_MODIFICATION` (bulk), instance parameters only, and accepts only values it can convert from mm/m²/degrees/m³ exactly.
+- Renames that require a judgement (which allowed name, which number) are proposed to the user, never guessed.
+
+---
+
+## ADR-039 — Workflows as Fixed Recipes
+
+Status: Accepted (2026-10-07)
+
+Decision: high-level workflows (ADR-014) are fixed, versioned recipes in `RevitAi.Core/Workflows` (`prepare_floor_for_documentation`, `qa_floor`, `create_room_with_walls`, `create_sheet_set`, `fix_standards`). The AI fetches one with `get_workflow` and follows its steps using existing tools. All changes still form one plan the user previews and applies.
+
+Reason: deterministic, reviewable steps without a second execution engine. A unit test ensures recipes only reference tools that exist.
+
+Also: `MaxAiSteps` default raised from 8 to 12 for workflows. `settings.json` now stores only values that differ from the defaults, so changed defaults reach existing installs.

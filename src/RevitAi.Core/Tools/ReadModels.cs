@@ -81,6 +81,19 @@ public sealed record WarningsResult(int TotalWarnings, int GroupCount, bool Trun
 
 public sealed record SelectionChangeResult(int Selected, IReadOnlyList<long> NotFound);
 
+public sealed record RuleResult(string Rule, string Description, int ViolationCount, bool Truncated, IReadOnlyList<QaElement> Violations);
+
+public sealed record StandardsReport(bool Configured, IReadOnlyList<RuleResult> Rules, IReadOnlyList<string> Problems);
+
+public sealed record StandardsSummary(
+    IReadOnlyList<string>? RoomNames,
+    string? SheetNumberPattern,
+    IReadOnlyDictionary<string, string>? ViewNamePatterns,
+    IReadOnlyDictionary<string, List<string>>? RequiredParameters,
+    IReadOnlyDictionary<string, string>? ViewTemplates,
+    IReadOnlyDictionary<string, IReadOnlyList<string>> StandardTypes,
+    IReadOnlyList<string> Problems);
+
 public sealed record ParametersResult(
     long ElementId,
     IReadOnlyList<ElementParameter> Parameters,

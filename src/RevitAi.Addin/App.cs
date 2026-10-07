@@ -18,6 +18,7 @@ using RevitAi.Core.Localization;
 using RevitAi.Core.Planning;
 using RevitAi.Core.Standards;
 using RevitAi.Core.Tools;
+using RevitAi.Core.Workflows;
 
 namespace RevitAi.Addin;
 
@@ -139,6 +140,9 @@ public sealed class App : IExternalApplication
         registry.Register(new FindNonstandardElementsTool(dispatcher, standardsPath));
         registry.Register(new FindElementsMissingParameterTool(dispatcher));
         registry.Register(new SelectElementsTool(dispatcher));
+        registry.Register(new GetProjectStandardsTool(dispatcher, standardsPath));
+        registry.Register(new CheckStandardsTool(dispatcher, standardsPath));
+        registry.Register(new GetWorkflowTool());
 
         registry.Register(new CreateWallTool(dispatcher, text));
         registry.Register(new ModifyWallTool(dispatcher, text));
@@ -148,6 +152,8 @@ public sealed class App : IExternalApplication
         registry.Register(new CreateFloorTool(dispatcher, text));
         registry.Register(new MoveElementsTool(dispatcher, text));
         registry.Register(new DeleteElementsTool(dispatcher, text));
+        registry.Register(new SetParametersTool(dispatcher, text));
+        registry.Register(new ApplyViewTemplateTool(dispatcher, text));
 
         registry.Register(new CreateViewTool(dispatcher, text));
         registry.Register(new CreateSheetTool(dispatcher, text));

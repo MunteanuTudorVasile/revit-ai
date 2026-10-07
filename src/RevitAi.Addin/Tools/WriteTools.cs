@@ -222,7 +222,7 @@ public sealed class CreateRoomTool(RevitDispatcher dispatcher, TextSource text) 
             throw new ToolException(T.Format("Tool.RoomNotEnclosed", point.X, point.Y));
         }
 
-        return new OperationResult(room.Id.Value, T.Format("Tool.RoomCreated", room.Number, room.Name, RevitRead.M2(room.Area), level.Name));
+        return new OperationResult(room.Id.Value, T.Format("Tool.RoomCreated", room.Number, RevitRead.RoomName(room) ?? "", RevitRead.M2(room.Area), level.Name));
     }
 }
 

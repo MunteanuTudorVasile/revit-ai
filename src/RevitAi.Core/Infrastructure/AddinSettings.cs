@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace RevitAi.Core.Infrastructure;
 
@@ -13,7 +14,7 @@ public sealed record AddinSettings
     public int AiRequestTimeoutSeconds { get; init; } = 120;
 
     /// <summary>Maximum AI round trips per question before the assistant gives up.</summary>
-    public int MaxAiSteps { get; init; } = 8;
+    public int MaxAiSteps { get; init; } = 12;
 
     /// <summary>Panel language: "en" or "ro".</summary>
     public string Language { get; init; } = "en";
@@ -24,7 +25,7 @@ public sealed record AddinSettings
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
     /// <summary>
-    /// Loads settings from <paramref name="path"/>. A missing file is created with defaults.
+    /// Loads settings from <paramref name="path"/>. A missing file is created (empty: every value is a default; see the README).
     /// A file that cannot be read or parsed falls back to defaults and returns the reason in <paramref name="problem"/>.
     /// Invalid individual values are replaced by their defaults, also reported in <paramref name="problem"/>.
     /// </summary>
@@ -52,10 +53,24 @@ public sealed record AddinSettings
         }
     }
 
+    /// <summary>
+    /// Writes only the values that differ from the defaults, so a later change of a default (e.g. MaxAiSteps)
+    /// still reaches users who never set that value themselves.
+    /// </summary>
     public void Save(string path)
     {
+        JsonObject values = JsonSerializer.SerializeToNode(this)!.AsObject();
+        JsonObject defaults = JsonSerializer.SerializeToNode(new AddinSettings())!.AsObject();
+        foreach (string key in values.Select(p => p.Key).ToList())
+        {
+            if (JsonNode.DeepEquals(values[key], defaults[key]))
+            {
+                values.Remove(key);
+            }
+        }
+
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        File.WriteAllText(path, JsonSerializer.Serialize(this, JsonOptions));
+        File.WriteAllText(path, values.ToJsonString(JsonOptions));
     }
 
     private AddinSettings WithValidValues(out string? problem)
