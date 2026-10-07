@@ -1,0 +1,58 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Everything that touches Revit or WPF lives here.
+    Build per Revit year:  dotnet build -p:RevitVersion=2025   (default 2026, ADR-021)
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <PlatformTarget>x64</PlatformTarget>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <RevitVersion Condition="'$(RevitVersion)' == ''">2026</RevitVersion>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <OutputPath>bin\$(Configuration)\R$(RevitVersion)\</OutputPath>
+    <IntermediateOutputPath>obj\$(Configuration)\R$(RevitVersion)\</IntermediateOutputPath>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(RevitVersion)' == '2025'">
+    <RevitApiPackageVersion>2025.4.60</RevitApiPackageVersion>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(RevitVersion)' == '2026'">
+    <RevitApiPackageVersion>2026.4.10</RevitApiPackageVersion>
+  </PropertyGroup>
+
+  <Target Name="CheckRevitVersion" BeforeTargets="Restore;Build" Condition="'$(RevitApiPackageVersion)' == ''">
+    <Error Text="Unsupported RevitVersion '$(RevitVersion)'. Supported: 2025, 2026 (ADR-021)." />
+  </Target>
+
+  <!-- Compile-time reference assemblies only; Revit supplies the real API at runtime. -->
+  <ItemGroup>
+    <PackageReference Include="Nice3point.Revit.Api.RevitAPI" Version="$(RevitApiPackageVersion)" ExcludeAssets="runtime" PrivateAssets="all" />
+    <PackageReference Include="Nice3point.Revit.Api.RevitAPIUI" Version="$(RevitApiPackageVersion)" ExcludeAssets="runtime" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\RevitAi.Core\RevitAi.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="RevitAi.addin" CopyToOutputDirectory="PreserveNewest" />
+    <EmbeddedResource Include="Resources\*.png" LogicalName="RevitAi.Addin.Resources.%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <!-- Debug builds on Windows install themselves for the matching Revit year. Close Revit first: it locks the DLLs. -->
+  <Target Name="DeployToRevit" AfterTargets="Build" Condition="'$(OS)' == 'Windows_NT' AND '$(Configuration)' == 'Debug'">
+    <PropertyGroup>
+      <RevitAddinsDir>$(APPDATA)\Autodesk\Revit\Addins\$(RevitVersion)</RevitAddinsDir>
+    </PropertyGroup>
+    <ItemGroup>
+      <AddinOutputFiles Include="$(OutDir)**\*.*" Exclude="$(OutDir)RevitAi.addin" />
+    </ItemGroup>
+    <Copy SourceFiles="@(AddinOutputFiles)" DestinationFiles="@(AddinOutputFiles->'$(RevitAddinsDir)\RevitAi\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(OutDir)RevitAi.addin" DestinationFolder="$(RevitAddinsDir)" SkipUnchangedFiles="true" />
+    <Message Importance="high" Text="Deployed Revit AI to $(RevitAddinsDir)" />
+  </Target>
+
+</Project>

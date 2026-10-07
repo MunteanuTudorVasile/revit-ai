@@ -1,0 +1,664 @@
+# Revit AI Assistant — Tool Registry
+
+This document defines the initial tool contract.
+
+The AI may only interact with Revit through registered tools.
+
+Tool names are stable API contracts.
+
+**Units (ADR-026):** all lengths and coordinates are in millimetres, areas in m², angles in degrees, in both inputs and outputs, regardless of project display units. IDs are 64-bit integers (`ElementId.Value`).
+
+**Risk (ADR-025):** fixed per tool in the registry; see the table below. Write tools are queued into a plan, not executed immediately (ADR-024).
+
+| Risk | Tools |
+|---|---|
+| `READ_ONLY` | all Context, Elements, Families and Types, Geometry and Analysis tools |
+| `SAFE_MODIFICATION` | `create_wall`, `modify_wall`, `create_floor`, `modify_floor`, `create_room`, `modify_room`, `create_door`, `create_window`, `create_text`, `create_tag`, `dimension_wall`, `dimension_room` |
+| `LARGE_MODIFICATION` | `create_level`, `create_grid`, `create_view`, `create_sheet`, `create_schedule` |
+| `DESTRUCTIVE` | `delete_element` |
+
+A plan containing many `SAFE_MODIFICATION` operations is escalated to `LARGE_MODIFICATION` by size thresholds.
+
+---
+
+## 1. Tool Categories
+
+### Context
+
+- `get_project_info`
+- `get_active_view`
+- `get_active_level`
+- `get_selected_elements`
+
+### Elements
+
+- `find_elements`
+- `get_element`
+- `get_element_parameters`
+- `get_element_location`
+- `get_element_bounding_box`
+
+### Families and Types
+
+- `find_families`
+- `find_family_types`
+- `get_family_type`
+- `get_project_standard_types`
+
+### Geometry
+
+- `calculate_distance`
+- `calculate_area`
+
+### Architecture
+
+- `create_wall`
+- `modify_wall`
+- `delete_element`
+- `create_floor`
+- `modify_floor`
+- `create_room`
+- `modify_room`
+- `create_door`
+- `create_window`
+
+### Project
+
+- `create_level`
+- `create_grid`
+- `create_view`
+
+### Documentation
+
+- `dimension_wall`
+- `dimension_room`
+- `create_text`
+- `create_tag`
+- `create_sheet`
+- `create_schedule`
+
+### Analysis
+
+- `find_rooms_without_tags`
+- `find_unhosted_doors`
+- `find_unhosted_windows`
+- `find_duplicate_elements`
+- `find_nonstandard_elements`
+
+---
+
+## 2. get_project_info
+
+Purpose: return basic project information.
+
+Input:
+
+```json
+{}
+```
+
+Output:
+
+```json
+{
+  "projectName": "Example",
+  "revitVersion": "2026",
+  "units": "metric",
+  "lengthUnit": "mm",
+  "areaUnit": "m2"
+}
+```
+
+Risk: `READ_ONLY`
+
+---
+
+## 3. get_active_view
+
+Input:
+
+```json
+{}
+```
+
+Output:
+
+```json
+{
+  "id": 123,
+  "name": "Level 1",
+  "viewType": "FloorPlan"
+}
+```
+
+---
+
+## 4. get_active_level
+
+Input:
+
+```json
+{}
+```
+
+Output:
+
+```json
+{
+  "id": 456,
+  "name": "Level 1",
+  "elevation": 0
+}
+```
+
+---
+
+## 5. get_selected_elements
+
+Input:
+
+```json
+{}
+```
+
+Output:
+
+```json
+{
+  "elements": [
+    {
+      "id": 123,
+      "category": "Walls",
+      "family": "Basic Wall",
+      "type": "Generic - 200mm"
+    }
+  ]
+}
+```
+
+---
+
+## 6. find_elements
+
+Purpose: search project elements.
+
+Input:
+
+```json
+{
+  "category": "Walls",
+  "levelId": 456,
+  "name": null,
+  "limit": 50
+}
+```
+
+---
+
+## 7. get_element
+
+Input:
+
+```json
+{
+  "elementId": 123
+}
+```
+
+Output should contain relevant information without serializing the entire object.
+
+---
+
+## 8. get_element_parameters
+
+Input:
+
+```json
+{
+  "elementId": 123,
+  "parameterNames": [
+    "Width",
+    "Base Constraint",
+    "Unconnected Height"
+  ]
+}
+```
+
+---
+
+## 9. get_element_location
+
+Input:
+
+```json
+{
+  "elementId": 123
+}
+```
+
+Output should represent the location in a deterministic format.
+
+---
+
+## 10. get_element_bounding_box
+
+Input:
+
+```json
+{
+  "elementId": 123
+}
+```
+
+---
+
+## 11. find_families
+
+Input:
+
+```json
+{
+  "category": "Doors",
+  "search": "single",
+  "limit": 20
+}
+```
+
+---
+
+## 12. find_family_types
+
+Input:
+
+```json
+{
+  "category": "Doors",
+  "familyName": "Single-Flush"
+}
+```
+
+---
+
+## 13. get_project_standard_types
+
+Purpose: return preferred project types.
+
+Input:
+
+```json
+{
+  "category": "Walls"
+}
+```
+
+Output:
+
+```json
+{
+  "types": [
+    {
+      "id": 123,
+      "name": "Interior Standard 100mm",
+      "isPreferred": true
+    }
+  ]
+}
+```
+
+---
+
+## 14. calculate_distance
+
+Input:
+
+```json
+{
+  "pointA": { "x": 0, "y": 0, "z": 0 },
+  "pointB": { "x": 5000, "y": 0, "z": 0 }
+}
+```
+
+Output:
+
+```json
+{
+  "distance": 5000
+}
+```
+
+---
+
+## 15. calculate_area
+
+Input:
+
+```json
+{
+  "boundary": [
+    { "x": 0, "y": 0 },
+    { "x": 5000, "y": 0 },
+    { "x": 5000, "y": 4000 },
+    { "x": 0, "y": 4000 }
+  ]
+}
+```
+
+Output:
+
+```json
+{
+  "area": 20
+}
+```
+
+---
+
+## 16. create_wall
+
+Input:
+
+```json
+{
+  "start": { "x": 0, "y": 0, "z": 0 },
+  "end": { "x": 5000, "y": 0, "z": 0 },
+  "typeId": 123,
+  "levelId": 456,
+  "height": 2800,
+  "structural": false
+}
+```
+
+Validation:
+
+- type exists
+- level exists
+- start != end
+- valid height
+- valid coordinates
+
+Risk: `SAFE_MODIFICATION`
+
+---
+
+## 17. modify_wall
+
+Input:
+
+```json
+{
+  "elementId": 123,
+  "operation": "extend",
+  "distance": 500,
+  "direction": "end"
+}
+```
+
+Supported operations should initially be limited.
+
+Do not create a generic arbitrary wall geometry editor.
+
+---
+
+## 18. delete_element
+
+Input:
+
+```json
+{
+  "elementId": 123
+}
+```
+
+Risk: `DESTRUCTIVE`
+
+Requires explicit confirmation.
+
+---
+
+## 19. create_floor
+
+Input:
+
+```json
+{
+  "boundary": [],
+  "typeId": 123,
+  "levelId": 456
+}
+```
+
+---
+
+## 20. create_room
+
+Input:
+
+```json
+{
+  "levelId": 456,
+  "location": { "x": 5000, "y": 3000 },
+  "name": "Bedroom",
+  "number": null
+}
+```
+
+---
+
+## 21. modify_room
+
+Input:
+
+```json
+{
+  "elementId": 123,
+  "name": "Bedroom 1",
+  "number": "101"
+}
+```
+
+---
+
+## 22. create_door
+
+Input:
+
+```json
+{
+  "hostWallId": 123,
+  "familyTypeId": 456,
+  "location": { "x": 2500, "y": 0, "z": 0 },
+  "rotation": 0
+}
+```
+
+Validation:
+
+- host exists
+- host supports door
+- family type exists
+- location is valid
+
+---
+
+## 23. create_window
+
+Input:
+
+```json
+{
+  "hostWallId": 123,
+  "familyTypeId": 456,
+  "location": { "x": 3000, "y": 0, "z": 1200 }
+}
+```
+
+---
+
+## 24. create_level
+
+Input:
+
+```json
+{
+  "name": "Level 2",
+  "elevation": 3000
+}
+```
+
+Risk: `LARGE_MODIFICATION`
+
+---
+
+## 25. create_grid
+
+Input:
+
+```json
+{
+  "name": "A",
+  "start": {},
+  "end": {}
+}
+```
+
+---
+
+## 26. create_view
+
+Input:
+
+```json
+{
+  "viewType": "FloorPlan",
+  "levelId": 456,
+  "name": "Level 1 - AI"
+}
+```
+
+---
+
+## 27. dimension_wall / dimension_room
+
+The AI cannot produce Revit `Reference` objects, so dimension tools are intent-level: C# computes the references.
+
+`dimension_wall` input:
+
+```json
+{
+  "viewId": 123,
+  "wallId": 456,
+  "offset": 500,
+  "styleId": null
+}
+```
+
+Dimensions the wall's length, offset from the wall by `offset` mm.
+
+`dimension_room` input:
+
+```json
+{
+  "viewId": 123,
+  "roomId": 789,
+  "offset": 500,
+  "styleId": null
+}
+```
+
+Dimensions the room's overall width and depth between its bounding walls.
+
+---
+
+## 28. create_text
+
+Input:
+
+```json
+{
+  "viewId": 123,
+  "position": {},
+  "text": "Example"
+}
+```
+
+---
+
+## 29. create_tag
+
+Input:
+
+```json
+{
+  "viewId": 123,
+  "elementId": 456,
+  "tagTypeId": 789
+}
+```
+
+---
+
+## 30. create_sheet
+
+Input:
+
+```json
+{
+  "name": "Level 1",
+  "number": "A101",
+  "titleBlockTypeId": 123
+}
+```
+
+---
+
+## 31. create_schedule
+
+Input:
+
+```json
+{
+  "name": "Door Schedule",
+  "category": "Doors",
+  "fields": [
+    "Mark",
+    "Family",
+    "Type",
+    "Width"
+  ]
+}
+```
+
+---
+
+## 32. Analysis Tools
+
+These tools are read-only and should be preferred for model checking.
+
+Examples:
+
+- `find_rooms_without_tags`
+- `find_unhosted_doors`
+- `find_unhosted_windows`
+- `find_duplicate_elements`
+- `find_nonstandard_elements`
+
+---
+
+## 33. Tool Design Rules
+
+Tools must:
+
+- be deterministic
+- have explicit schemas
+- return structured data
+- have clear failure states
+- avoid unnecessary data
+- be testable independently
+- have a defined risk level
+
+Tools must not:
+
+- execute arbitrary AI-generated code
+- silently modify unrelated elements
+- silently delete elements
+- return misleading success
