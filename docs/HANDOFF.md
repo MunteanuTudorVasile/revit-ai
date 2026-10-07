@@ -27,6 +27,8 @@ For a new session (e.g. Claude Code on the Windows PC). Read `CLAUDE.md`, `READM
 - `place_family_instances` placed instances one level-height too high: the Z passed to `NewFamilyInstance` is an offset
   from the level, so it is now 0.
 
+Second self-test after the fixes (2026-10-07 23:25): **48 passed, 0 failed, 0 skipped**.
+
 Confirmed working in Revit: add-in loading, every read/QA tool, plans with references, preview and failing-step rollback,
 views, tags, dimensions, schedules, sheets, sections, elevations (real direction), 3D, templates, grids, delete with
 dependents, refusals, `select_elements` inside a transaction group. Still untested: the panel, OpenAI, the dispatcher.
