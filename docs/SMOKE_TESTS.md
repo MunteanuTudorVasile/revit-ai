@@ -161,6 +161,15 @@ Put this in `%APPDATA%\RevitAi\standards.json` (adapt names to your project):
 | 7.4 | Ask "Create a sheet set for all levels." | One plan: a plan view (if missing) and a sheet per level, numbered sequentially per the pattern. |
 | 7.5 | Ask "Fix our standards." | Fixes only the unambiguous items (templates); lists room-name and sheet-number violations and asks before renaming. No deletes. |
 
+## Branch `next` — grids, placement, unmet requests
+
+| # | Steps | Expected |
+|---|---|---|
+| N.1 | Place ~12 small generic-model (or column) instances roughly in 3 columns × 4 rows (off by a few cm). Select them; ask "Make a grid from these dots." | Explains 3 vertical + 4 horizontal lines with spacings; plan create_grids with names like A–C and 1–4 not already used. Preview, Apply: grids pass through the dots, about 1 m beyond the outer ones. |
+| N.2 | Add one dot far off the pattern and repeat. | Reports the off-grid dot by element ID; no grid line for it. |
+| N.3 | Ask "Put a column every 6 m in a 3 × 3 grid starting at the origin on Level 1." | Plan place_family_instances with 9 points (preview required). Apply: columns at the right positions **and at the level's height** (check they are not offset vertically). |
+| N.4 | Ask for something impossible, e.g. "Read the point cloud." | Says it is not available; `%LOCALAPPDATA%\RevitAi\unmet-requests.jsonl` has a new line. |
+
 ## Results
 
 | Date | Revit version/build | Tester | Result | Notes |

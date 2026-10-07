@@ -538,3 +538,23 @@ Proposal: the MVP is
 "Fix everything that is safe" (Phase 9), agent workflows (Phase 10) and layout generation (Phase 11) are post-MVP.
 
 Supersedes ADR-031.
+
+---
+
+## ADR-043 — Log Unmet Requests
+
+Status: Accepted (2026-10-07)
+
+Decision: when the AI cannot do what the user asks because no tool supports it, it calls `report_unavailable_request`, which
+appends the request and the missing capability to `%LOCALAPPDATA%\RevitAi\unmet-requests.jsonl`. The file is local only;
+nothing is sent anywhere. It drives the backlog from real demand.
+
+---
+
+## ADR-044 — General Building Blocks Plus Revit-Free Analysis
+
+Status: Accepted (2026-10-07)
+
+Decision: new capabilities are preferably built as a Revit-free analysis function in Core (unit-tested) plus general write
+tools, rather than one special-purpose tool per request. First instances: `GridDetection` + `find_grid_lines` (read),
+`create_grids` and `place_family_instances` (write, LARGE because they create many elements).

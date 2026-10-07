@@ -735,7 +735,18 @@ by category where a mapping exists.
 
 ---
 
-## 37. Tool Design Rules
+## 37. Grids, Placement and Unmet Requests
+
+| Tool | Kind | Input | Notes |
+|---|---|---|---|
+| `find_grid_lines` | read | `elementIds` / `category` (+`levelId`) / both null = selection; `toleranceMm` (100); `minPointsPerLine` (2) | Rows and columns of point-based elements, spacings, elements off the grid, existing grid names. Axis-aligned to model X/Y. |
+| `create_grids` | write, LARGE | `grids: [{ name, start, end }]` | Unique names (new and existing), length ≥ 100 mm, at most 100. |
+| `place_family_instances` | write, LARGE | `familyTypeId`, `levelId`, `points`, `rotationDegrees` | Level-based families only; structural columns placed as columns; at most 500. |
+| `report_unavailable_request` | read | `request`, `missingCapability` | Appends to the local unmet-requests file (ADR-043). |
+
+---
+
+## 38. Tool Design Rules
 
 Tools must:
 

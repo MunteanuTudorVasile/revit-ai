@@ -65,7 +65,8 @@ public sealed class App : IExternalApplication
             }
 
             var text = new TextSource(new UiText(settings.Language));
-            ToolRegistry registry = CreateToolRegistry(dispatcher, standardsPath, text);
+            var unmetRequests = new UnmetRequestLog(Path.Combine(LocalDataDir, "unmet-requests.jsonl"), _log);
+            ToolRegistry registry = CreateToolRegistry(dispatcher, standardsPath, text, unmetRequests);
             var orchestrator = new Orchestrator(ai, registry, _log, settings.MaxAiSteps);
             var history = new ActionHistory(Path.Combine(LocalDataDir, "history.jsonl"), _log);
             _viewModel = new AssistantViewModel(
@@ -116,7 +117,7 @@ public sealed class App : IExternalApplication
         }
     }
 
-    private static ToolRegistry CreateToolRegistry(RevitDispatcher dispatcher, string standardsPath, TextSource text)
+    private static ToolRegistry CreateToolRegistry(RevitDispatcher dispatcher, string standardsPath, TextSource text, UnmetRequestLog unmetRequests)
     {
         var registry = new ToolRegistry();
         registry.Register(new GetProjectInfoTool(dispatcher));
@@ -143,6 +144,8 @@ public sealed class App : IExternalApplication
         registry.Register(new GetProjectStandardsTool(dispatcher, standardsPath));
         registry.Register(new CheckStandardsTool(dispatcher, standardsPath));
         registry.Register(new GetWorkflowTool());
+        registry.Register(new ReportUnavailableRequestTool(unmetRequests));
+        registry.Register(new FindGridLinesTool(dispatcher));
 
         registry.Register(new CreateWallTool(dispatcher, text));
         registry.Register(new ModifyWallTool(dispatcher, text));
@@ -154,6 +157,8 @@ public sealed class App : IExternalApplication
         registry.Register(new DeleteElementsTool(dispatcher, text));
         registry.Register(new SetParametersTool(dispatcher, text));
         registry.Register(new ApplyViewTemplateTool(dispatcher, text));
+        registry.Register(new CreateGridsTool(dispatcher, text));
+        registry.Register(new PlaceFamilyInstancesTool(dispatcher, text));
 
         registry.Register(new CreateViewTool(dispatcher, text));
         registry.Register(new CreateSheetTool(dispatcher, text));

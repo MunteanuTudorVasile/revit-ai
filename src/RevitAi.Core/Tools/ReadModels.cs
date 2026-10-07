@@ -94,6 +94,16 @@ public sealed record StandardsSummary(
     IReadOnlyDictionary<string, IReadOnlyList<string>> StandardTypes,
     IReadOnlyList<string> Problems);
 
+public sealed record GridLinesResult(
+    int PointsUsed,
+    int SkippedWithoutPoint,
+    IReadOnlyList<Geometry.GridLineCandidate> VerticalLines,
+    IReadOnlyList<Geometry.GridLineCandidate> HorizontalLines,
+    IReadOnlyList<double> VerticalSpacingsMm,
+    IReadOnlyList<double> HorizontalSpacingsMm,
+    IReadOnlyList<long> OffGridElementIds,
+    IReadOnlyList<string> ExistingGridNames);
+
 public sealed record ParametersResult(
     long ElementId,
     IReadOnlyList<ElementParameter> Parameters,
