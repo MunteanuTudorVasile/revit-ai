@@ -2,16 +2,23 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using RevitAi.Core.Context;
 using RevitAi.Core.Infrastructure;
+using RevitAi.Core.Planning;
 using RevitAi.Core.Tools;
 
 namespace RevitAi.Core.Ai;
 
 public sealed record ToolCallRecord(string Name, string ArgumentsJson, bool Succeeded);
 
-public sealed record AssistantReply(string Text, IReadOnlyList<ToolCallRecord> ToolCalls, bool StoppedAtStepLimit);
+/// <param name="Plan">Changes the AI proposed in this turn, not yet applied; null when it proposed none.</param>
+public sealed record AssistantReply(
+    string Text,
+    IReadOnlyList<ToolCallRecord> ToolCalls,
+    bool StoppedAtStepLimit,
+    PendingPlan? Plan);
 
 /// <summary>
 /// The AI loop: ask the model, run the tools it requests, feed the results back, repeat until it answers.
+/// Read tools run immediately. Write tools are only validated and queued into a plan (ADR-024).
 /// It never touches Revit directly; tools do, through the dispatcher.
 /// </summary>
 public sealed class Orchestrator
@@ -48,12 +55,14 @@ public sealed class Orchestrator
         Conversation conversation,
         string userText,
         ModelContext context,
+        IReadOnlyList<ActionRecord> recentActions,
         IProgress<string>? progress,
         CancellationToken cancellationToken)
     {
         var turn = new List<AiItem> { new UserMessage(userText) };
         var records = new List<ToolCallRecord>();
-        string instructions = AssistantInstructions.Build(context);
+        var plan = new PendingPlan(userText);
+        string instructions = AssistantInstructions.Build(context, recentActions);
 
         for (int step = 0; step < _maxSteps; step++)
         {
@@ -67,13 +76,13 @@ public sealed class Orchestrator
                 string text = string.IsNullOrWhiteSpace(response.Text) ? "I don't have an answer for that." : response.Text;
                 turn.Add(new AssistantMessage(text));
                 conversation.AddTurn(turn);
-                return new AssistantReply(text, records, StoppedAtStepLimit: false);
+                return new AssistantReply(text, records, StoppedAtStepLimit: false, PlanOrNull(plan));
             }
 
             var outputs = new List<AiItem>();
             foreach (ToolCall call in response.ToolCalls)
             {
-                (string content, bool succeeded) = await RunToolAsync(call, progress, cancellationToken).ConfigureAwait(false);
+                (string content, bool succeeded) = await RunToolAsync(call, plan, progress, cancellationToken).ConfigureAwait(false);
                 outputs.Add(new ToolOutput(call.Id, content));
                 records.Add(new ToolCallRecord(call.Name, call.ArgumentsJson, succeeded));
             }
@@ -85,11 +94,14 @@ public sealed class Orchestrator
         string stopped = $"I stopped after {_maxSteps} steps without reaching an answer. Try asking something more specific.";
         turn.Add(new AssistantMessage(stopped));
         conversation.AddTurn(turn);
-        return new AssistantReply(stopped, records, StoppedAtStepLimit: true);
+        return new AssistantReply(stopped, records, StoppedAtStepLimit: true, PlanOrNull(plan));
     }
+
+    private static PendingPlan? PlanOrNull(PendingPlan plan) => plan.Operations.Count == 0 ? null : plan;
 
     private async Task<(string Content, bool Succeeded)> RunToolAsync(
         ToolCall call,
+        PendingPlan plan,
         IProgress<string>? progress,
         CancellationToken cancellationToken)
     {
@@ -115,11 +127,24 @@ public sealed class Orchestrator
             return (Error("Invalid arguments: " + string.Join(" ", errors)), false);
         }
 
+        if (tool is IWriteTool)
+        {
+            int badReference = PlanReferences.Find(arguments).FirstOrDefault(n => n < 1 || n >= plan.NextNumber);
+            if (badReference != 0)
+            {
+                return (Error($"{PlanReferences.For(badReference)} does not refer to an earlier operation in this plan."), false);
+            }
+        }
+
         progress?.Report(tool.ProgressLabel);
         try
         {
-            object result = await tool.ExecuteAsync(arguments, cancellationToken).ConfigureAwait(false);
-            return (Truncate(JsonSerializer.Serialize(result, result.GetType(), ResultJson)), true);
+            return tool switch
+            {
+                IReadTool read => (Serialize(await read.ExecuteAsync(arguments, cancellationToken).ConfigureAwait(false)), true),
+                IWriteTool write => (await QueueAsync(write, call, arguments, plan, cancellationToken).ConfigureAwait(false), true),
+                _ => (Error($"Tool '{call.Name}' cannot be run."), false),
+            };
         }
         catch (ToolException ex)
         {
@@ -140,10 +165,32 @@ public sealed class Orchestrator
         }
     }
 
-    private string Truncate(string json) =>
-        json.Length <= _maxResultChars
+    private async Task<string> QueueAsync(
+        IWriteTool tool,
+        ToolCall call,
+        JsonElement arguments,
+        PendingPlan plan,
+        CancellationToken cancellationToken)
+    {
+        string summary = await tool.ValidateAsync(arguments, cancellationToken).ConfigureAwait(false);
+        PlannedOperation operation = plan.Add(tool.Name, arguments.GetRawText(), summary, tool.Risk);
+        return Serialize(new
+        {
+            queued = true,
+            operation = operation.Number,
+            reference = PlanReferences.For(operation.Number),
+            summary,
+            note = "Not applied. The user must review the plan and click Apply.",
+        });
+    }
+
+    private string Serialize(object result)
+    {
+        string json = JsonSerializer.Serialize(result, result.GetType(), ResultJson);
+        return json.Length <= _maxResultChars
             ? json
             : $"[Result truncated to {_maxResultChars} of {json.Length} characters. Ask for fewer items.]\n{json[.._maxResultChars]}";
+    }
 
     private static string Error(string message) => JsonSerializer.Serialize(new { error = message }, ResultJson);
 }

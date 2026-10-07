@@ -62,6 +62,8 @@ Success — user can ask:
 
 ## Phase 2 — Basic Modeling
 
+Status: implemented; awaiting the Phase 2 smoke tests in `SMOKE_TESTS.md`.
+
 Goal: safely modify simple BIM elements.
 
 Implement:

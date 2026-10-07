@@ -2,14 +2,14 @@
 
 AI assistant add-in for Autodesk Revit 2025 and 2026. Start with [CLAUDE.md](CLAUDE.md) and [docs/](docs/); decisions are in [docs/DECISIONS.md](docs/DECISIONS.md).
 
-Current phase: **Phase 1 — read-only AI** (answers questions about the model; cannot change it).
+Current phase: **Phase 2 — basic modeling**. Answers questions and proposes walls, rooms, doors, windows and floors; the model changes only when the user clicks Apply.
 
 ## Layout
 
 | Path | What |
 |---|---|
-| `src/RevitAi.Core` | Revit-free code (`net8.0`): AI loop, OpenAI client, tool registry and schema validation, dispatcher queue, settings, logging. Builds and tests on macOS. |
-| `src/RevitAi.Addin` | Everything that touches Revit or WPF (`net8.0-windows`): entry point, dispatcher, read-only tools, API key store, panel. |
+| `src/RevitAi.Core` | Revit-free code (`net8.0`): AI loop, OpenAI client, tool registry and schema validation, plans and plan references, action history, geometry checks, dispatcher queue, settings, logging. Builds and tests on macOS. |
+| `src/RevitAi.Addin` | Everything that touches Revit or WPF (`net8.0-windows`): entry point, dispatcher, read and write tools, plan executor (transactions, failure handling), API key store, panel. |
 | `tests/RevitAi.Core.Tests` | xUnit tests for Core. No Revit, no live AI calls. |
 | `docs/SMOKE_TESTS.md` | Manual checks to run in Revit. |
 
@@ -42,6 +42,7 @@ dotnet test tests/RevitAi.Core.Tests
 | Settings | `%APPDATA%\RevitAi\settings.json` (created with defaults on first start) |
 | OpenAI API key | `%APPDATA%\RevitAi\openai.key` (DPAPI-encrypted for the Windows user; set from the panel) |
 | Logs | `%LOCALAPPDATA%\RevitAi\logs\revitai-YYYYMMDD.log` |
+| AI action history | `%LOCALAPPDATA%\RevitAi\history.jsonl` (one JSON line per Apply, successful or not) |
 
 ## Settings
 

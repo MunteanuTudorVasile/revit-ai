@@ -3,7 +3,7 @@ namespace RevitAi.Core.Tools;
 // Result contracts of the read-only tools (docs/REVIT_TOOLS.md).
 // Lengths and coordinates in millimetres, areas in m² (ADR-026). IDs are ElementId.Value.
 
-public sealed record ElementSummary(long Id, string? Category, string? Family, string? Type, string? Name, string? Level);
+public sealed record ElementSummary(long Id, string? Category, string? Family, string? Type, long? TypeId, string? Name, string? Level);
 
 public sealed record ProjectInfoResult(
     string Title,

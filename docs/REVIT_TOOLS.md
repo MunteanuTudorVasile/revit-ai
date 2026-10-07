@@ -228,7 +228,7 @@ Input:
 
 `parameterNames: null` returns all instance parameters (max 80). Named parameters are looked up on the element, then on its type. Each value has `name`, `source` (`instance`/`type`), `storageType`, `displayValue`, `valueMm` (lengths), `valueM2` (areas), `isReadOnly`; unknown names are listed in `notFound`.
 
-Implementation status: the seven Phase 1 read tools (sections 2–8) are implemented in `src/RevitAi.Addin/Tools/`; their result contracts are in `src/RevitAi.Core/Tools/ReadModels.cs`.
+Implementation status: the seven Phase 1 read tools (sections 2–8) are implemented in `src/RevitAi.Addin/Tools/`; their result contracts are in `src/RevitAi.Core/Tools/ReadModels.cs`. The six Phase 2 write tools (`create_wall`, `modify_wall`, `create_room`, `create_door`, `create_window`, `create_floor`) are in `src/RevitAi.Addin/Tools/WriteTools.cs`.
 
 ---
 
@@ -365,22 +365,22 @@ Input:
 
 ```json
 {
-  "start": { "x": 0, "y": 0, "z": 0 },
-  "end": { "x": 5000, "y": 0, "z": 0 },
-  "typeId": 123,
+  "start": { "x": 0, "y": 0 },
+  "end": { "x": 5000, "y": 0 },
   "levelId": 456,
-  "height": 2800,
-  "structural": false
+  "wallTypeId": null,
+  "heightMm": null
 }
 ```
 
+`wallTypeId: null` uses the project's default wall type; `heightMm: null` means 3000 mm. Straight walls only.
+
 Validation:
 
-- type exists
 - level exists
-- start != end
-- valid height
-- valid coordinates
+- type exists and is a wall type
+- length ≥ 10 mm
+- 0 < height ≤ 100 000 mm
 
 Risk: `SAFE_MODIFICATION`
 
@@ -392,16 +392,16 @@ Input:
 
 ```json
 {
-  "elementId": 123,
-  "operation": "extend",
-  "distance": 500,
-  "direction": "end"
+  "wallId": 123,
+  "end": "end",
+  "distanceMm": 500
 }
 ```
 
-Supported operations should initially be limited.
+Moves one end of a straight wall along its direction: positive extends, negative shortens. `wallId` may be `"$opN.elementId"`.
+This is the only supported wall modification in Phase 2; there is no generic geometry editor.
 
-Do not create a generic arbitrary wall geometry editor.
+Validation: wall exists, is straight, resulting length ≥ 10 mm, distance ≠ 0.
 
 ---
 
@@ -427,11 +427,13 @@ Input:
 
 ```json
 {
-  "boundary": [],
-  "typeId": 123,
-  "levelId": 456
+  "levelId": 456,
+  "boundary": [ { "x": 0, "y": 0 }, { "x": 5000, "y": 0 }, { "x": 5000, "y": 4000 }, { "x": 0, "y": 4000 } ],
+  "floorTypeId": null
 }
 ```
+
+Validation: level and type exist; at least 3 points; every edge ≥ 10 mm; boundary does not cross or touch itself.
 
 ---
 
@@ -442,11 +444,14 @@ Input:
 ```json
 {
   "levelId": 456,
-  "location": { "x": 5000, "y": 3000 },
+  "point": { "x": 5000, "y": 3000 },
   "name": "Bedroom",
   "number": null
 }
 ```
+
+Post-execution validation: after regeneration the room must have an area > 0. A room at a point that is not enclosed
+fails the step, and the whole plan is rolled back.
 
 ---
 
@@ -470,19 +475,21 @@ Input:
 
 ```json
 {
-  "hostWallId": 123,
-  "familyTypeId": 456,
-  "location": { "x": 2500, "y": 0, "z": 0 },
-  "rotation": 0
+  "wallId": 123,
+  "doorTypeId": null,
+  "offsetAlongWallMm": 2500
 }
 ```
 
+The door is centred `offsetAlongWallMm` from the wall's start point. `wallId` may be `"$opN.elementId"`;
+`doorTypeId: null` uses the project's default door type.
+
 Validation:
 
-- host exists
-- host supports door
-- family type exists
-- location is valid
+- host is a straight wall
+- type is a door type
+- offset lies within the wall
+- after placement the door is hosted by that wall
 
 ---
 
@@ -492,11 +499,14 @@ Input:
 
 ```json
 {
-  "hostWallId": 123,
-  "familyTypeId": 456,
-  "location": { "x": 3000, "y": 0, "z": 1200 }
+  "wallId": 123,
+  "windowTypeId": null,
+  "offsetAlongWallMm": 3000,
+  "sillHeightMm": 900
 }
 ```
+
+Same rules as `create_door`. `sillHeightMm: null` keeps the type's default; otherwise the instance sill height must be editable.
 
 ---
 

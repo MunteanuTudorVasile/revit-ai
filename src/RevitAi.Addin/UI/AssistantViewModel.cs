@@ -3,24 +3,33 @@ using System.ComponentModel;
 using System.IO;
 using System.Net.Http;
 using System.Runtime.CompilerServices;
+using System.Text;
 using RevitAi.Addin.Context;
 using RevitAi.Addin.Dispatch;
 using RevitAi.Addin.Infrastructure;
+using RevitAi.Addin.Planning;
+using RevitAi.Addin.Tools;
 using RevitAi.Core.Ai;
 using RevitAi.Core.Context;
 using RevitAi.Core.Infrastructure;
+using RevitAi.Core.Planning;
 
 namespace RevitAi.Addin.UI;
 
 public sealed record ChatMessage(string Author, string Text);
 
-/// <summary>Panel state. Phase 1: read-only questions answered by the AI through registered tools.</summary>
+/// <summary>
+/// Panel state. The AI answers questions and proposes plans; the model only changes when the user clicks Apply (ADR-024).
+/// </summary>
 public sealed class AssistantViewModel : INotifyPropertyChanged
 {
     private const string AssistantName = "Revit AI";
+    private const int RecentActionsForContext = 5;
 
     private readonly RevitDispatcher _dispatcher;
     private readonly Orchestrator _orchestrator;
+    private readonly PlanExecutor _executor;
+    private readonly ActionHistory _history;
     private readonly ApiKeyStore _keyStore;
     private readonly string _settingsPath;
     private readonly FileLog _log;
@@ -33,10 +42,15 @@ public sealed class AssistantViewModel : INotifyPropertyChanged
     private bool _isBusy;
     private bool _showKeyPanel;
     private CancellationTokenSource? _cancellation;
+    private PendingPlan? _plan;
+    private bool _previewSucceeded;
+    private string _previewText = string.Empty;
 
     public AssistantViewModel(
         RevitDispatcher dispatcher,
         Orchestrator orchestrator,
+        PlanExecutor executor,
+        ActionHistory history,
         ApiKeyStore keyStore,
         AddinSettings settings,
         string settingsPath,
@@ -44,21 +58,28 @@ public sealed class AssistantViewModel : INotifyPropertyChanged
     {
         _dispatcher = dispatcher;
         _orchestrator = orchestrator;
+        _executor = executor;
+        _history = history;
         _keyStore = keyStore;
         _settings = settings;
         _settingsPath = settingsPath;
         _log = log;
         _showKeyPanel = !keyStore.HasKey;
 
-        SendCommand = new AsyncCommand(SendAsync);
+        SendCommand = new AsyncCommand(SendAsync, () => !IsBusy);
         RefreshCommand = new AsyncCommand(async () => await ReadContextAsync());
+        PreviewCommand = new AsyncCommand(PreviewAsync, () => _plan is not null && !IsBusy);
+        ApplyCommand = new AsyncCommand(ApplyAsync, () => CanApply);
+        DiscardCommand = new RelayCommand(() => DiscardPlan("Discarded the proposal. Nothing was changed."), () => _plan is not null && !IsBusy);
         CancelCommand = new RelayCommand(() => _cancellation?.Cancel(), () => IsBusy);
         AcceptConsentCommand = new RelayCommand(AcceptConsent);
         ToggleKeyPanelCommand = new RelayCommand(() => ShowKeyPanel = !ShowKeyPanel);
         RemoveKeyCommand = new RelayCommand(RemoveApiKey, () => HasApiKey);
 
         Messages.Add(new ChatMessage(AssistantName,
-            "Ask me about your Revit model, for example: \"What did I select?\", \"What level am I on?\", \"How many doors are on this level?\""));
+            "Ask me about your model or what to change, for example: \"What did I select?\", " +
+            "\"How many doors are on this level?\", \"Make this wall 50 cm longer.\" " +
+            "I only propose changes; nothing changes until you click Apply."));
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -76,6 +97,35 @@ public sealed class AssistantViewModel : INotifyPropertyChanged
     public RelayCommand ToggleKeyPanelCommand { get; }
 
     public RelayCommand RemoveKeyCommand { get; }
+
+    public AsyncCommand PreviewCommand { get; }
+
+    public AsyncCommand ApplyCommand { get; }
+
+    public RelayCommand DiscardCommand { get; }
+
+    public ObservableCollection<string> PlanItems { get; } = [];
+
+    public bool HasPlan => _plan is not null;
+
+    public string PlanHeader => _plan is null
+        ? string.Empty
+        : $"Proposed changes · not applied yet · {_plan.Operations.Count} operation(s)"
+          + (_plan.RequiresPreview ? " · preview required before Apply" : "");
+
+    public string PreviewText
+    {
+        get => _previewText;
+        private set
+        {
+            Set(ref _previewText, value);
+            OnPropertyChanged(nameof(HasPreviewText));
+        }
+    }
+
+    public bool HasPreviewText => _previewText.Length > 0;
+
+    private bool CanApply => _plan is not null && !IsBusy && (!_plan.RequiresPreview || _previewSucceeded);
 
     public string Input
     {
@@ -96,6 +146,7 @@ public sealed class AssistantViewModel : INotifyPropertyChanged
         {
             Set(ref _isBusy, value);
             CancelCommand.RaiseCanExecuteChanged();
+            RaisePlanCommandsChanged();
         }
     }
 
@@ -114,6 +165,11 @@ public sealed class AssistantViewModel : INotifyPropertyChanged
     /// <summary>Called from Revit events (UI thread, API context) and after dispatcher reads.</summary>
     public void UpdateContext(ModelContext context)
     {
+        if (context.DocumentTitle != _context.DocumentTitle && _plan is not null && !IsBusy)
+        {
+            DiscardPlan("The active project changed, so I discarded the proposal. Nothing was changed.");
+        }
+
         if (context.DocumentTitle != _context.DocumentTitle && _conversation.TurnCount > 0)
         {
             _conversation.Clear();
@@ -188,7 +244,7 @@ public sealed class AssistantViewModel : INotifyPropertyChanged
     private async Task SendAsync()
     {
         string text = Input.Trim();
-        if (text.Length == 0)
+        if (text.Length == 0 || IsBusy)
         {
             return;
         }
@@ -207,6 +263,11 @@ public sealed class AssistantViewModel : INotifyPropertyChanged
         }
 
         Input = string.Empty;
+        if (_plan is not null)
+        {
+            DiscardPlan("I discarded the previous proposal; it was never applied.");
+        }
+
         Messages.Add(new ChatMessage("You", text));
 
         ModelContext? context = await ReadContextAsync();
@@ -221,8 +282,14 @@ public sealed class AssistantViewModel : INotifyPropertyChanged
         var progress = new Progress<string>(label => Status = label);
         try
         {
-            AssistantReply reply = await _orchestrator.RunAsync(_conversation, text, context, progress, cancellation.Token);
+            IReadOnlyList<ActionRecord> recent = _history.RecentApplied(context.DocumentTitle, RecentActionsForContext);
+            AssistantReply reply = await _orchestrator.RunAsync(_conversation, text, context, recent, progress, cancellation.Token);
             Messages.Add(new ChatMessage(AssistantName, reply.Text));
+            if (reply.Plan is not null)
+            {
+                ShowPlan(reply.Plan);
+            }
+
             _log.Info($"Answered using {reply.ToolCalls.Count} tool call(s): {string.Join(", ", reply.ToolCalls.Select(c => c.Name))}.");
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
@@ -259,6 +326,184 @@ public sealed class AssistantViewModel : INotifyPropertyChanged
             Status = string.Empty;
             _cancellation = null;
         }
+    }
+
+    private void ShowPlan(PendingPlan plan)
+    {
+        _plan = plan;
+        _previewSucceeded = false;
+        PreviewText = string.Empty;
+        PlanItems.Clear();
+        foreach (PlannedOperation operation in plan.Operations)
+        {
+            PlanItems.Add($"{operation.Number}. {operation.Summary}");
+        }
+
+        OnPlanChanged();
+    }
+
+    private void DiscardPlan(string message)
+    {
+        _plan = null;
+        _previewSucceeded = false;
+        PreviewText = string.Empty;
+        PlanItems.Clear();
+        OnPlanChanged();
+        Messages.Add(new ChatMessage(AssistantName, message));
+    }
+
+    private async Task PreviewAsync()
+    {
+        if (_plan is not { } plan || IsBusy)
+        {
+            return;
+        }
+
+        IsBusy = true;
+        Status = "Previewing in Revit. Nothing will be kept…";
+        try
+        {
+            PlanRunResult result = await _dispatcher.InvokeAsync(
+                app => _executor.Run(RevitRead.RequireDocument(app), plan, apply: false));
+            if (_plan == plan)
+            {
+                _previewSucceeded = result.Succeeded;
+                PreviewText = DescribePreview(result);
+                RaisePlanCommandsChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            ReportRunFailure("Preview", ex);
+        }
+        finally
+        {
+            IsBusy = false;
+            Status = string.Empty;
+        }
+    }
+
+    private async Task ApplyAsync()
+    {
+        if (_plan is not { } plan || !CanApply)
+        {
+            return;
+        }
+
+        IsBusy = true;
+        Status = "Applying changes in Revit…";
+        try
+        {
+            (string documentTitle, PlanRunResult result) = await _dispatcher.InvokeAsync(app =>
+            {
+                var document = RevitRead.RequireDocument(app);
+                return (document.Title, _executor.Run(document, plan, apply: true));
+            });
+
+            _history.Add(new ActionRecord(Guid.NewGuid(), DateTimeOffset.Now, documentTitle, plan.UserRequest, plan.Operations, result));
+            _log.Info($"Apply '{plan.UserRequest}': {(result.Applied ? "applied" : "rolled back")}, " +
+                      $"{result.Steps.Count(s => s.Succeeded)}/{plan.Operations.Count} step(s) succeeded.");
+
+            _plan = null;
+            PlanItems.Clear();
+            PreviewText = string.Empty;
+            OnPlanChanged();
+            Messages.Add(new ChatMessage(AssistantName, DescribeApply(result)));
+        }
+        catch (Exception ex)
+        {
+            ReportRunFailure("Apply", ex);
+        }
+        finally
+        {
+            IsBusy = false;
+            Status = string.Empty;
+        }
+    }
+
+    /// <summary>
+    /// The dispatcher guarantees a request either never ran or ran to completion, and the executor rolls back on any
+    /// failure, so an exception here means the model was not changed.
+    /// </summary>
+    private void ReportRunFailure(string action, Exception ex)
+    {
+        if (ex is TimeoutException)
+        {
+            _log.Warning($"{action} timed out waiting for Revit.");
+            Messages.Add(new ChatMessage(AssistantName,
+                $"Revit didn't start the {action.ToLowerInvariant()} in time (busy or showing a dialog). Nothing was changed. Try again."));
+            return;
+        }
+
+        _log.Error($"{action} failed.", ex);
+        Messages.Add(new ChatMessage(AssistantName, $"{action} failed: {ex.Message}. Nothing was changed."));
+    }
+
+    private static string DescribePreview(PlanRunResult result)
+    {
+        var text = new StringBuilder();
+        if (result.Succeeded)
+        {
+            text.AppendLine("Preview succeeded. It was rolled back, so nothing was kept:");
+            AppendSteps(text, result.Steps);
+        }
+        else
+        {
+            StepResult failed = result.FailedStep!;
+            text.AppendLine($"Preview failed at step {failed.Number}: {failed.Outcome}");
+            text.AppendLine("Nothing was changed. Ask me to adjust the plan.");
+        }
+
+        return text.ToString().TrimEnd();
+    }
+
+    private static string DescribeApply(PlanRunResult result)
+    {
+        var text = new StringBuilder();
+        if (result.Applied)
+        {
+            text.AppendLine($"Applied {result.Steps.Count} change(s):");
+            AppendSteps(text, result.Steps);
+            text.AppendLine($"Undo all of it with Ctrl+Z (\"{result.UndoName}\").");
+        }
+        else
+        {
+            StepResult failed = result.FailedStep!;
+            text.AppendLine($"Nothing was changed. Step {failed.Number} ({failed.ToolName}) failed: {failed.Outcome}");
+            if (failed.Number > 1)
+            {
+                text.AppendLine($"Steps 1–{failed.Number - 1} were rolled back too.");
+            }
+        }
+
+        return text.ToString().TrimEnd();
+    }
+
+    private static void AppendSteps(StringBuilder text, IReadOnlyList<StepResult> steps)
+    {
+        foreach (StepResult step in steps)
+        {
+            text.AppendLine($"• {step.Outcome}");
+            foreach (string warning in step.Warnings)
+            {
+                text.AppendLine($"   ⚠ Revit warning: {warning}");
+            }
+        }
+    }
+
+    private void OnPlanChanged()
+    {
+        OnPropertyChanged(nameof(HasPlan));
+        OnPropertyChanged(nameof(PlanHeader));
+        RaisePlanCommandsChanged();
+    }
+
+    private void RaisePlanCommandsChanged()
+    {
+        SendCommand?.RaiseCanExecuteChanged();
+        PreviewCommand?.RaiseCanExecuteChanged();
+        ApplyCommand?.RaiseCanExecuteChanged();
+        DiscardCommand?.RaiseCanExecuteChanged();
     }
 
     /// <summary>Reads the context through the dispatcher and updates the indicator; reports failures in the chat.</summary>

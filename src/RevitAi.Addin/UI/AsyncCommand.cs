@@ -6,21 +6,28 @@ namespace RevitAi.Addin.UI;
 public sealed class AsyncCommand : ICommand
 {
     private readonly Func<Task> _execute;
+    private readonly Func<bool> _canExecute;
     private bool _isRunning;
 
-    public AsyncCommand(Func<Task> execute)
+    public AsyncCommand(Func<Task> execute, Func<bool>? canExecute = null)
     {
         _execute = execute;
+        _canExecute = canExecute ?? (() => true);
     }
 
     public event EventHandler? CanExecuteChanged;
 
-    public bool CanExecute(object? parameter) => !_isRunning;
+    public bool CanExecute(object? parameter) => !_isRunning && _canExecute();
 
     public async void Execute(object? parameter)
     {
+        if (!CanExecute(parameter))
+        {
+            return;
+        }
+
         _isRunning = true;
-        CanExecuteChanged?.Invoke(this, EventArgs.Empty);
+        RaiseCanExecuteChanged();
         try
         {
             // _execute must handle its own errors; an exception escaping async void would crash Revit.
@@ -29,7 +36,9 @@ public sealed class AsyncCommand : ICommand
         finally
         {
             _isRunning = false;
-            CanExecuteChanged?.Invoke(this, EventArgs.Empty);
+            RaiseCanExecuteChanged();
         }
     }
+
+    public void RaiseCanExecuteChanged() => CanExecuteChanged?.Invoke(this, EventArgs.Empty);
 }

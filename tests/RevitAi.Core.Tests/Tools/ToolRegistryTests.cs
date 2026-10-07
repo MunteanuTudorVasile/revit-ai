@@ -21,11 +21,29 @@ public class ToolRegistryTests
     [InlineData(RiskLevel.SafeModification)]
     [InlineData(RiskLevel.LargeModification)]
     [InlineData(RiskLevel.Destructive)]
-    public void Rejects_tools_that_modify_the_model(RiskLevel risk)
+    public void Rejects_read_tools_that_are_not_read_only(RiskLevel risk)
+    {
+        Assert.Throws<ArgumentException>(() => new ToolRegistry().Register(new FakeTool("get_wall", risk)));
+    }
+
+    [Theory]
+    [InlineData(RiskLevel.SafeModification)]
+    [InlineData(RiskLevel.LargeModification)]
+    public void Accepts_write_tools(RiskLevel risk)
     {
         var registry = new ToolRegistry();
 
-        Assert.Throws<ArgumentException>(() => registry.Register(new FakeTool("create_wall", risk)));
+        registry.Register(new FakeWriteTool(risk: risk));
+
+        Assert.True(registry.TryGet("create_thing", out _));
+    }
+
+    [Theory]
+    [InlineData(RiskLevel.ReadOnly)]
+    [InlineData(RiskLevel.Destructive)]
+    public void Rejects_write_tools_that_are_read_only_or_destructive(RiskLevel risk)
+    {
+        Assert.Throws<ArgumentException>(() => new ToolRegistry().Register(new FakeWriteTool(risk: risk)));
     }
 
     [Fact]

@@ -5,7 +5,7 @@ using RevitAi.Core.Tools;
 
 namespace RevitAi.Core.Tests;
 
-internal sealed class FakeTool : ITool
+internal sealed class FakeTool : IReadTool
 {
     private readonly Func<JsonElement, object> _execute;
 
@@ -37,6 +37,46 @@ internal sealed class FakeTool : ITool
     {
         Calls.Add(arguments);
         return Task.FromResult(_execute(arguments));
+    }
+}
+
+internal sealed class FakeWriteTool : IWriteTool
+{
+    private readonly Func<JsonElement, string> _validate;
+
+    public FakeWriteTool(
+        string name = "create_thing",
+        RiskLevel risk = RiskLevel.SafeModification,
+        Func<JsonElement, string>? validate = null)
+    {
+        Name = name;
+        Risk = risk;
+        _validate = validate ?? (args => $"Create thing {args.GetProperty("size").GetInt64()}");
+    }
+
+    public string Name { get; }
+
+    public string Description => "Test write tool.";
+
+    public JsonElement InputSchema { get; } = ToolSchema.Parse("""
+        {
+          "type": "object",
+          "properties": { "size": { "type": "integer" }, "hostId": { "type": ["integer", "string", "null"] } },
+          "required": ["size", "hostId"],
+          "additionalProperties": false
+        }
+        """);
+
+    public RiskLevel Risk { get; }
+
+    public string ProgressLabel => $"Checking {Name}…";
+
+    public List<JsonElement> Validations { get; } = [];
+
+    public Task<string> ValidateAsync(JsonElement arguments, CancellationToken cancellationToken)
+    {
+        Validations.Add(arguments);
+        return Task.FromResult(_validate(arguments));
     }
 }
 

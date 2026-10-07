@@ -7,11 +7,13 @@ using Autodesk.Revit.UI.Events;
 using RevitAi.Addin.Context;
 using RevitAi.Addin.Dispatch;
 using RevitAi.Addin.Infrastructure;
+using RevitAi.Addin.Planning;
 using RevitAi.Addin.Tools;
 using RevitAi.Addin.UI;
 using RevitAi.Core.Ai;
 using RevitAi.Core.Context;
 using RevitAi.Core.Infrastructure;
+using RevitAi.Core.Planning;
 using RevitAi.Core.Tools;
 
 namespace RevitAi.Addin;
@@ -23,8 +25,10 @@ public sealed class App : IExternalApplication
     private static readonly string AppDataDir =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "RevitAi");
 
-    private static readonly string LogDir =
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "RevitAi", "logs");
+    private static readonly string LocalDataDir =
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "RevitAi");
+
+    private static readonly string LogDir = Path.Combine(LocalDataDir, "logs");
 
     // One HttpClient for the add-in's lifetime; the timeout is set from settings in OnStartup.
     private static readonly HttpClient Http = new();
@@ -49,8 +53,11 @@ public sealed class App : IExternalApplication
             Http.Timeout = TimeSpan.FromSeconds(settings.AiRequestTimeoutSeconds);
             var keyStore = new ApiKeyStore(Path.Combine(AppDataDir, "openai.key"));
             var ai = new OpenAiClient(Http, settings.OpenAiModel, keyStore.TryLoad);
-            var orchestrator = new Orchestrator(ai, CreateToolRegistry(dispatcher), _log, settings.MaxAiSteps);
-            _viewModel = new AssistantViewModel(dispatcher, orchestrator, keyStore, settings, settingsPath, _log);
+            ToolRegistry registry = CreateToolRegistry(dispatcher);
+            var orchestrator = new Orchestrator(ai, registry, _log, settings.MaxAiSteps);
+            var history = new ActionHistory(Path.Combine(LocalDataDir, "history.jsonl"), _log);
+            _viewModel = new AssistantViewModel(
+                dispatcher, orchestrator, new PlanExecutor(registry), history, keyStore, settings, settingsPath, _log);
 
             // Dockable panes can only be registered during startup.
             application.RegisterDockablePane(PaneId, "Revit AI", new AssistantPaneProvider(new AssistantPane(_viewModel)));
@@ -95,6 +102,13 @@ public sealed class App : IExternalApplication
         registry.Register(new GetElementTool(dispatcher));
         registry.Register(new FindElementsTool(dispatcher));
         registry.Register(new GetElementParametersTool(dispatcher));
+
+        registry.Register(new CreateWallTool(dispatcher));
+        registry.Register(new ModifyWallTool(dispatcher));
+        registry.Register(new CreateRoomTool(dispatcher));
+        registry.Register(new CreateDoorTool(dispatcher));
+        registry.Register(new CreateWindowTool(dispatcher));
+        registry.Register(new CreateFloorTool(dispatcher));
         return registry;
     }
 

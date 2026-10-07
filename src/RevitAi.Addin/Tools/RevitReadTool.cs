@@ -7,7 +7,7 @@ using RevitAi.Core.Tools;
 namespace RevitAi.Addin.Tools;
 
 /// <summary>A read-only tool whose work runs inside Revit's API context through the dispatcher.</summary>
-public abstract class RevitReadTool : ITool
+public abstract class RevitReadTool : IReadTool
 {
     protected const string NoArguments = """{ "type": "object", "properties": {}, "required": [], "additionalProperties": false }""";
 
@@ -51,6 +51,8 @@ internal static class RevitRead
 
     public static double Mm(double feet) => Math.Round(UnitUtils.ConvertFromInternalUnits(feet, UnitTypeId.Millimeters), 1);
 
+    public static double Feet(double millimetres) => UnitUtils.ConvertToInternalUnits(millimetres, UnitTypeId.Millimeters);
+
     public static double M2(double squareFeet) => Math.Round(UnitUtils.ConvertFromInternalUnits(squareFeet, UnitTypeId.SquareMeters), 3);
 
     public static PointMm Point(XYZ point) => new(Mm(point.X), Mm(point.Y), Mm(point.Z));
@@ -60,7 +62,7 @@ internal static class RevitRead
         Document document = element.Document;
         var type = document.GetElement(element.GetTypeId()) as ElementType;
         string? level = element.LevelId == ElementId.InvalidElementId ? null : document.GetElement(element.LevelId)?.Name;
-        return new ElementSummary(element.Id.Value, element.Category?.Name, type?.FamilyName, type?.Name, element.Name, level);
+        return new ElementSummary(element.Id.Value, element.Category?.Name, type?.FamilyName, type?.Name, type?.Id.Value, element.Name, level);
     }
 
     public static long? OptionalLong(JsonElement arguments, string name) =>

@@ -16,6 +16,7 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <!-- Context indicator -->
@@ -73,12 +74,37 @@
             </ListBox.ItemTemplate>
         </ListBox>
 
+        <!-- Proposed plan (ADR-024): never applied until the user clicks Apply -->
+        <Border Grid.Row="4" Padding="8" Margin="0,8,0,0" Background="#EEF4FF" BorderBrush="#93B4F5" BorderThickness="1" CornerRadius="4"
+                Visibility="{Binding HasPlan, Converter={StaticResource Visible}}">
+            <StackPanel>
+                <TextBlock FontWeight="SemiBold" TextWrapping="Wrap" Text="{Binding PlanHeader}" />
+                <ItemsControl ItemsSource="{Binding PlanItems}" Margin="0,6,0,0">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding}" TextWrapping="Wrap" Margin="0,1" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBox Text="{Binding PreviewText, Mode=OneWay}" TextWrapping="Wrap" IsReadOnly="True" Margin="0,6,0,0"
+                         BorderThickness="0" Background="Transparent" Padding="0"
+                         Visibility="{Binding HasPreviewText, Converter={StaticResource Visible}}" />
+                <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                    <Button Content="Preview" Padding="10,3" Command="{Binding PreviewCommand}"
+                            ToolTip="Run the plan in Revit and roll it back, to see the real result and warnings" />
+                    <Button Content="Apply" Padding="10,3" Margin="6,0,0,0" FontWeight="SemiBold" Command="{Binding ApplyCommand}"
+                            ToolTip="Make these changes. They become one undo step (Ctrl+Z)." />
+                    <Button Content="Discard" Padding="10,3" Margin="6,0,0,0" Command="{Binding DiscardCommand}" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
         <!-- Progress -->
-        <TextBlock Grid.Row="4" Margin="0,4,0,0" Foreground="#4B5563" FontStyle="Italic" Text="{Binding Status}"
+        <TextBlock Grid.Row="5" Margin="0,4,0,0" Foreground="#4B5563" FontStyle="Italic" Text="{Binding Status}"
                    Visibility="{Binding IsBusy, Converter={StaticResource Visible}}" />
 
         <!-- Input -->
-        <DockPanel Grid.Row="5" Margin="0,8,0,0">
+        <DockPanel Grid.Row="6" Margin="0,8,0,0">
             <Button DockPanel.Dock="Right" Content="Cancel" Padding="10,4" Margin="6,0,0,0"
                     Command="{Binding CancelCommand}"
                     Visibility="{Binding IsBusy, Converter={StaticResource Visible}}" />
@@ -92,8 +118,8 @@
             </TextBox>
         </DockPanel>
 
-        <!-- Read-only notice (UX: the user must always know whether the model can change) -->
-        <TextBlock Grid.Row="6" Margin="0,6,0,0" FontSize="11" Foreground="#6B7280" TextWrapping="Wrap"
-                   Text="Read-only: the assistant can look at your model but can't change it yet." />
+        <!-- UX: the user must always know whether the model can change -->
+        <TextBlock Grid.Row="7" Margin="0,6,0,0" FontSize="11" Foreground="#6B7280" TextWrapping="Wrap"
+                   Text="Nothing in your model changes until you click Apply. Each applied plan is one undo step (Ctrl+Z)." />
     </Grid>
 </Page>

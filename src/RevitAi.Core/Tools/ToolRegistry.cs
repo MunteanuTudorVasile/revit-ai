@@ -17,10 +17,19 @@ public sealed partial class ToolRegistry
             throw new ArgumentException($"Tool name '{tool.Name}' must be snake_case.", nameof(tool));
         }
 
-        // Write tools need the plan → preview → apply pipeline (ADR-024), which arrives in Phase 2.
-        if (tool.Risk != RiskLevel.ReadOnly)
+        switch (tool)
         {
-            throw new ArgumentException($"Tool '{tool.Name}' modifies the model; only read-only tools are allowed in Phase 1.", nameof(tool));
+            case IReadTool when tool.Risk != RiskLevel.ReadOnly:
+                throw new ArgumentException($"Read tool '{tool.Name}' must be READ_ONLY.", nameof(tool));
+            case IWriteTool when tool.Risk == RiskLevel.ReadOnly:
+                throw new ArgumentException($"Write tool '{tool.Name}' cannot be READ_ONLY.", nameof(tool));
+            case IWriteTool when tool.Risk == RiskLevel.Destructive:
+                // Destructive operations need the explicit-confirmation flow (UX Level 4), not built yet.
+                throw new ArgumentException($"Destructive tool '{tool.Name}' is not supported yet.", nameof(tool));
+            case IReadTool or IWriteTool:
+                break;
+            default:
+                throw new ArgumentException($"Tool '{tool.Name}' must be a read tool or a write tool.", nameof(tool));
         }
 
         if (tool.InputSchema.ValueKind != JsonValueKind.Object
