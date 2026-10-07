@@ -1,13 +1,18 @@
 using System.IO;
+using System.Net.Http;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Autodesk.Revit.UI;
 using Autodesk.Revit.UI.Events;
 using RevitAi.Addin.Context;
 using RevitAi.Addin.Dispatch;
+using RevitAi.Addin.Infrastructure;
+using RevitAi.Addin.Tools;
 using RevitAi.Addin.UI;
+using RevitAi.Core.Ai;
 using RevitAi.Core.Context;
 using RevitAi.Core.Infrastructure;
+using RevitAi.Core.Tools;
 
 namespace RevitAi.Addin;
 
@@ -21,6 +26,9 @@ public sealed class App : IExternalApplication
     private static readonly string LogDir =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "RevitAi", "logs");
 
+    // One HttpClient for the add-in's lifetime; the timeout is set from settings in OnStartup.
+    private static readonly HttpClient Http = new();
+
     private FileLog? _log;
     private AssistantViewModel? _viewModel;
 
@@ -29,7 +37,8 @@ public sealed class App : IExternalApplication
         _log = new FileLog(LogDir);
         try
         {
-            AddinSettings settings = AddinSettings.Load(Path.Combine(AppDataDir, "settings.json"), out string? problem);
+            string settingsPath = Path.Combine(AppDataDir, "settings.json");
+            AddinSettings settings = AddinSettings.Load(settingsPath, out string? problem);
             if (problem is not null)
             {
                 _log.Warning(problem);
@@ -37,7 +46,11 @@ public sealed class App : IExternalApplication
 
             // Must be created here, inside Revit's API context (ADR-023).
             var dispatcher = new RevitDispatcher(TimeSpan.FromSeconds(settings.DispatcherTimeoutSeconds), _log);
-            _viewModel = new AssistantViewModel(dispatcher, _log);
+            Http.Timeout = TimeSpan.FromSeconds(settings.AiRequestTimeoutSeconds);
+            var keyStore = new ApiKeyStore(Path.Combine(AppDataDir, "openai.key"));
+            var ai = new OpenAiClient(Http, settings.OpenAiModel, keyStore.TryLoad);
+            var orchestrator = new Orchestrator(ai, CreateToolRegistry(dispatcher), _log, settings.MaxAiSteps);
+            _viewModel = new AssistantViewModel(dispatcher, orchestrator, keyStore, settings, settingsPath, _log);
 
             // Dockable panes can only be registered during startup.
             application.RegisterDockablePane(PaneId, "Revit AI", new AssistantPaneProvider(new AssistantPane(_viewModel)));
@@ -50,7 +63,7 @@ public sealed class App : IExternalApplication
             // If another document is still open, its ViewActivated event follows and restores the context.
             application.ControlledApplication.DocumentClosed += (_, _) => _viewModel.UpdateContext(ModelContext.NoDocument);
 
-            _log.Info($"Revit AI started in Revit {application.ControlledApplication.VersionNumber}.");
+            _log.Info($"Revit AI started in Revit {application.ControlledApplication.VersionNumber} (model {settings.OpenAiModel}).");
             return Result.Succeeded;
         }
         catch (Exception ex)
@@ -70,6 +83,19 @@ public sealed class App : IExternalApplication
     private void OnSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
         _viewModel?.UpdateContext(ContextReader.Read(e.GetDocument()));
+    }
+
+    private static ToolRegistry CreateToolRegistry(RevitDispatcher dispatcher)
+    {
+        var registry = new ToolRegistry();
+        registry.Register(new GetProjectInfoTool(dispatcher));
+        registry.Register(new GetActiveViewTool(dispatcher));
+        registry.Register(new GetActiveLevelTool(dispatcher));
+        registry.Register(new GetSelectedElementsTool(dispatcher));
+        registry.Register(new GetElementTool(dispatcher));
+        registry.Register(new FindElementsTool(dispatcher));
+        registry.Register(new GetElementParametersTool(dispatcher));
+        return registry;
     }
 
     private static void CreateRibbon(UIControlledApplication application)

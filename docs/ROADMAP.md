@@ -25,6 +25,8 @@ No advanced AI functionality yet.
 
 ## Phase 1 — AI Foundation
 
+Status: implemented; awaiting the Phase 1 smoke tests in `SMOKE_TESTS.md`.
+
 Goal: user can chat with an AI that understands the current Revit context.
 
 Implement:

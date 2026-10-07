@@ -2,14 +2,14 @@
 
 AI assistant add-in for Autodesk Revit 2025 and 2026. Start with [CLAUDE.md](CLAUDE.md) and [docs/](docs/); decisions are in [docs/DECISIONS.md](docs/DECISIONS.md).
 
-Current phase: **Phase 0 — foundation** (panel, dispatcher, context; no AI yet).
+Current phase: **Phase 1 — read-only AI** (answers questions about the model; cannot change it).
 
 ## Layout
 
 | Path | What |
 |---|---|
-| `src/RevitAi.Core` | Revit-free code (`net8.0`): dispatcher queue, context model, settings, logging. Builds and tests on macOS. |
-| `src/RevitAi.Addin` | Everything that touches Revit or WPF (`net8.0-windows`): entry point, dispatcher, panel. |
+| `src/RevitAi.Core` | Revit-free code (`net8.0`): AI loop, OpenAI client, tool registry and schema validation, dispatcher queue, settings, logging. Builds and tests on macOS. |
+| `src/RevitAi.Addin` | Everything that touches Revit or WPF (`net8.0-windows`): entry point, dispatcher, read-only tools, API key store, panel. |
 | `tests/RevitAi.Core.Tests` | xUnit tests for Core. No Revit, no live AI calls. |
 | `docs/SMOKE_TESTS.md` | Manual checks to run in Revit. |
 
@@ -40,7 +40,20 @@ dotnet test tests/RevitAi.Core.Tests
 | File | Location |
 |---|---|
 | Settings | `%APPDATA%\RevitAi\settings.json` (created with defaults on first start) |
+| OpenAI API key | `%APPDATA%\RevitAi\openai.key` (DPAPI-encrypted for the Windows user; set from the panel) |
 | Logs | `%LOCALAPPDATA%\RevitAi\logs\revitai-YYYYMMDD.log` |
+
+## Settings
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `OpenAiModel` | `gpt-5` | OpenAI model used for answers. |
+| `AiRequestTimeoutSeconds` | 120 | How long to wait for OpenAI. |
+| `MaxAiSteps` | 8 | AI round trips per question before giving up. |
+| `DispatcherTimeoutSeconds` | 30 | How long to wait for Revit to run a request. |
+| `ConsentAcceptedAt` | null | Set when the user accepts the data notice. |
+
+Restart Revit after editing.
 
 ## Notes
 

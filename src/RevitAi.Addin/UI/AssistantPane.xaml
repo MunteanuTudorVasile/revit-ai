@@ -3,43 +3,97 @@
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       Title="Revit AI"
       Background="White">
+    <Page.Resources>
+        <BooleanToVisibilityConverter x:Key="Visible" />
+    </Page.Resources>
+
     <Grid Margin="8">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <!-- Context indicator -->
         <Border Grid.Row="0" Padding="8" Margin="0,0,0,8" Background="#F3F4F6" CornerRadius="4">
             <DockPanel>
-                <Button DockPanel.Dock="Right" Content="Refresh" Padding="8,2" VerticalAlignment="Top"
-                        Command="{Binding RefreshCommand}"
-                        ToolTip="Read the context from Revit through the dispatcher" />
+                <StackPanel DockPanel.Dock="Right" VerticalAlignment="Top">
+                    <Button Content="Refresh" Padding="8,2" Command="{Binding RefreshCommand}"
+                            ToolTip="Read the current context from Revit" />
+                    <Button Content="API key" Padding="8,2" Margin="0,4,0,0" Command="{Binding ToggleKeyPanelCommand}"
+                            ToolTip="Add, change or remove your OpenAI API key" />
+                </StackPanel>
                 <TextBlock Text="{Binding ContextText}" TextWrapping="Wrap" />
             </DockPanel>
         </Border>
 
+        <!-- Data notice (ADR-030) -->
+        <Border Grid.Row="1" Padding="8" Margin="0,0,0,8" Background="#FFF7E6" BorderBrush="#F5C26B" BorderThickness="1" CornerRadius="4"
+                Visibility="{Binding NeedsConsent, Converter={StaticResource Visible}}">
+            <StackPanel>
+                <TextBlock FontWeight="SemiBold" Text="Before you start" />
+                <TextBlock TextWrapping="Wrap" Margin="0,4,0,0"
+                           Text="To answer questions, Revit AI sends what you type and parts of your model to OpenAI: element names, categories, types, parameter values, levels and views. OpenAI's API data policies apply. Nothing is sent until you accept." />
+                <Button Content="I understand, continue" HorizontalAlignment="Left" Padding="10,3" Margin="0,8,0,0"
+                        Command="{Binding AcceptConsentCommand}" />
+            </StackPanel>
+        </Border>
+
+        <!-- API key (ADR-029) -->
+        <Border Grid.Row="2" Padding="8" Margin="0,0,0,8" Background="#F3F4F6" CornerRadius="4"
+                Visibility="{Binding ShowKeyPanel, Converter={StaticResource Visible}}">
+            <StackPanel>
+                <TextBlock FontWeight="SemiBold" Text="OpenAI API key" />
+                <TextBlock TextWrapping="Wrap" Margin="0,4,0,6" Foreground="#4B5563"
+                           Text="Create one at platform.openai.com. It is stored encrypted for your Windows account and only sent to OpenAI." />
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Content="Remove" Padding="8,2" Margin="4,0,0,0" Command="{Binding RemoveKeyCommand}" />
+                    <Button DockPanel.Dock="Right" Content="Save" Padding="8,2" Margin="4,0,0,0" Click="SaveKey_Click" />
+                    <PasswordBox x:Name="KeyBox" MinHeight="24" VerticalContentAlignment="Center" />
+                </DockPanel>
+            </StackPanel>
+        </Border>
+
         <!-- Conversation -->
-        <ListBox Grid.Row="1" ItemsSource="{Binding Messages}" BorderThickness="0"
+        <ListBox Grid.Row="3" ItemsSource="{Binding Messages}" BorderThickness="0"
                  HorizontalContentAlignment="Stretch"
                  ScrollViewer.HorizontalScrollBarVisibility="Disabled">
             <ListBox.ItemTemplate>
                 <DataTemplate>
                     <StackPanel Margin="0,4">
                         <TextBlock Text="{Binding Author}" FontWeight="SemiBold" />
-                        <TextBlock Text="{Binding Text}" TextWrapping="Wrap" />
+                        <TextBox Text="{Binding Text, Mode=OneWay}" TextWrapping="Wrap" IsReadOnly="True"
+                                 BorderThickness="0" Background="Transparent" Padding="0" />
                     </StackPanel>
                 </DataTemplate>
             </ListBox.ItemTemplate>
         </ListBox>
 
+        <!-- Progress -->
+        <TextBlock Grid.Row="4" Margin="0,4,0,0" Foreground="#4B5563" FontStyle="Italic" Text="{Binding Status}"
+                   Visibility="{Binding IsBusy, Converter={StaticResource Visible}}" />
+
         <!-- Input -->
-        <DockPanel Grid.Row="2" Margin="0,8,0,0">
-            <Button DockPanel.Dock="Right" Content="Send" Padding="12,4" Margin="8,0,0,0"
-                    Command="{Binding SendCommand}" IsDefault="True" />
+        <DockPanel Grid.Row="5" Margin="0,8,0,0">
+            <Button DockPanel.Dock="Right" Content="Cancel" Padding="10,4" Margin="6,0,0,0"
+                    Command="{Binding CancelCommand}"
+                    Visibility="{Binding IsBusy, Converter={StaticResource Visible}}" />
+            <Button DockPanel.Dock="Right" Content="Send" Padding="12,4" Margin="6,0,0,0"
+                    Command="{Binding SendCommand}" />
             <TextBox Text="{Binding Input, UpdateSourceTrigger=PropertyChanged}" MinHeight="28"
-                     VerticalContentAlignment="Center" />
+                     VerticalContentAlignment="Center">
+                <TextBox.InputBindings>
+                    <KeyBinding Key="Enter" Command="{Binding SendCommand}" />
+                </TextBox.InputBindings>
+            </TextBox>
         </DockPanel>
+
+        <!-- Read-only notice (UX: the user must always know whether the model can change) -->
+        <TextBlock Grid.Row="6" Margin="0,6,0,0" FontSize="11" Foreground="#6B7280" TextWrapping="Wrap"
+                   Text="Read-only: the assistant can look at your model but can't change it yet." />
     </Grid>
 </Page>

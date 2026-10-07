@@ -369,3 +369,20 @@ Status: Accepted (2026-10-07)
 Decision: the MVP is roadmap Phases 0–3: foundation, read-only AI, basic modeling (walls, rooms, doors, windows, floors) and context intelligence. Documentation (Phase 4) and model QA (Phase 5) are not MVP success criteria.
 
 Reason: resolves the conflict between `PRODUCT_SPEC.md §7/§14`, ADR-016 and `ROADMAP.md` (review items A3, A4).
+
+---
+
+## ADR-032 — OpenAI Client
+
+Status: Accepted (2026-10-07)
+
+Decision: call the OpenAI Chat Completions API with strict function calling directly over `HttpClient` and `System.Text.Json`, behind `IAiClient`. No OpenAI SDK.
+
+Reason: every add-in shares Revit's process; fewer third-party assemblies means fewer version conflicts with other add-ins. The request/response surface we need is small and covered by unit tests.
+
+Details:
+
+- The model name is a setting (`OpenAiModel`, default `gpt-5`). Verify it against the current OpenAI model list.
+- Tool schemas follow strict-mode rules: every property listed in `required`, `additionalProperties: false`, optional values expressed as `["type", "null"]`.
+- The API key is read from the encrypted store on every request (ADR-029).
+- Moving to the newer Responses API, or to another provider, only changes the `IAiClient` implementation.

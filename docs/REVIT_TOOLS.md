@@ -188,10 +188,12 @@ Input:
 {
   "category": "Walls",
   "levelId": 456,
-  "name": null,
+  "nameContains": null,
   "limit": 50
 }
 ```
+
+All properties are required; use `null` for "any" (OpenAI strict mode). `limit` defaults to 50, max 200. Output: `totalCount`, `truncated`, `elements` (same shape as `get_selected_elements`).
 
 ---
 
@@ -223,6 +225,10 @@ Input:
   ]
 }
 ```
+
+`parameterNames: null` returns all instance parameters (max 80). Named parameters are looked up on the element, then on its type. Each value has `name`, `source` (`instance`/`type`), `storageType`, `displayValue`, `valueMm` (lengths), `valueM2` (areas), `isReadOnly`; unknown names are listed in `notFound`.
+
+Implementation status: the seven Phase 1 read tools (sections 2–8) are implemented in `src/RevitAi.Addin/Tools/`; their result contracts are in `src/RevitAi.Core/Tools/ReadModels.cs`.
 
 ---
 
