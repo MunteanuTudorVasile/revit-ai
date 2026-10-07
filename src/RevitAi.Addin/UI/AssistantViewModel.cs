@@ -37,8 +37,9 @@ public sealed class AssistantViewModel : INotifyPropertyChanged
     private readonly FileLog _log;
     private readonly Conversation _conversation = new();
 
+    private readonly TextSource _text;
+
     private AddinSettings _settings;
-    private UiText _text;
     private ModelContext _context = ModelContext.NoDocument;
     private string _input = string.Empty;
     private string _status = string.Empty;
@@ -55,6 +56,7 @@ public sealed class AssistantViewModel : INotifyPropertyChanged
         PlanExecutor executor,
         ActionHistory history,
         ApiKeyStore keyStore,
+        TextSource text,
         AddinSettings settings,
         string settingsPath,
         FileLog log)
@@ -67,7 +69,7 @@ public sealed class AssistantViewModel : INotifyPropertyChanged
         _settings = settings;
         _settingsPath = settingsPath;
         _log = log;
-        _text = new UiText(settings.Language);
+        _text = text;
         _showKeyPanel = !keyStore.HasKey;
 
         SendCommand = new AsyncCommand(SendAsync, () => !IsBusy);
@@ -87,7 +89,7 @@ public sealed class AssistantViewModel : INotifyPropertyChanged
     public event PropertyChangedEventHandler? PropertyChanged;
 
     /// <summary>Panel texts; XAML binds to <c>T[Key]</c>.</summary>
-    public UiText T => _text;
+    public UiText T => _text.Current;
 
     public ObservableCollection<ChatMessage> Messages { get; } = [];
 
@@ -238,9 +240,9 @@ public sealed class AssistantViewModel : INotifyPropertyChanged
 
     private void ToggleLanguage()
     {
-        string language = _text.Language == UiText.English ? UiText.Romanian : UiText.English;
+        string language = T.Language == UiText.English ? UiText.Romanian : UiText.English;
         SaveSettings(_settings with { Language = language });
-        _text = new UiText(language);
+        _text.Current = new UiText(language);
 
         // Every binding to T[...] and every computed text refreshes; earlier chat messages stay as they were.
         OnPropertyChanged(nameof(T));

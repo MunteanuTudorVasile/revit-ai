@@ -3,6 +3,7 @@ using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
 using RevitAi.Addin.Dispatch;
 using RevitAi.Core.Geometry;
+using RevitAi.Core.Localization;
 using RevitAi.Core.Planning;
 using RevitAi.Core.Tools;
 
@@ -18,12 +19,17 @@ public sealed record OperationResult(long ElementId, string Outcome);
 public abstract class RevitWriteTool : IWriteTool
 {
     private readonly RevitDispatcher _dispatcher;
+    private readonly TextSource _text;
     private JsonElement? _schema;
 
-    protected RevitWriteTool(RevitDispatcher dispatcher)
+    protected RevitWriteTool(RevitDispatcher dispatcher, TextSource text)
     {
         _dispatcher = dispatcher;
+        _text = text;
     }
+
+    /// <summary>Texts in the current panel language, for plan summaries, outcomes and failure reasons.</summary>
+    protected UiText T => _text.Current;
 
     public abstract string Name { get; }
 
@@ -57,7 +63,7 @@ public abstract class RevitWriteTool : IWriteTool
 internal static class WriteArgs
 {
     /// <summary>The ID, or null when the argument is a plan reference that can only be checked when the plan runs.</summary>
-    public static long? IdOrReference(JsonElement arguments, string name)
+    public static long? IdOrReference(UiText t, JsonElement arguments, string name)
     {
         JsonElement value = arguments.GetProperty(name);
         if (value.ValueKind == JsonValueKind.Number)
@@ -67,12 +73,12 @@ internal static class WriteArgs
 
         return PlanReferences.TryParse(value.GetString(), out _)
             ? null
-            : throw new ToolException($"{name} must be an element ID or a reference like $op1.elementId.");
+            : throw new ToolException(t.Format("Tool.IdOrReference", name));
     }
 
     /// <summary>For <c>Apply</c>, where references have been resolved.</summary>
-    public static long Id(JsonElement arguments, string name) =>
-        IdOrReference(arguments, name) ?? throw new ToolException($"{name} still contains an unresolved reference.");
+    public static long Id(UiText t, JsonElement arguments, string name) =>
+        IdOrReference(t, arguments, name) ?? throw new ToolException(t.Format("Tool.UnresolvedReference", name));
 
     public static Point2 Point(JsonElement arguments, string name)
     {
@@ -85,37 +91,38 @@ internal static class WriteArgs
 
     public static XYZ ToXyz(Point2 point) => new(RevitRead.Feet(point.X), RevitRead.Feet(point.Y), 0);
 
-    public static Level Level(Document document, long id) =>
-        document.GetElement(new ElementId(id)) as Level ?? throw new ToolException($"Element {id} is not a level.");
+    public static Level Level(UiText t, Document document, long id) =>
+        document.GetElement(new ElementId(id)) as Level ?? throw new ToolException(t.Format("Tool.NotALevel", id));
 
-    public static Wall Wall(Document document, long id) =>
-        document.GetElement(new ElementId(id)) as Wall ?? throw new ToolException($"Element {id} is not a wall.");
+    public static Wall Wall(UiText t, Document document, long id) =>
+        document.GetElement(new ElementId(id)) as Wall ?? throw new ToolException(t.Format("Tool.NotAWall", id));
 
-    public static Line WallLine(Wall wall) =>
+    public static Line WallLine(UiText t, Wall wall) =>
         (wall.Location as LocationCurve)?.Curve as Line
-        ?? throw new ToolException($"Wall {wall.Id.Value} is not a straight wall; only straight walls are supported.");
+        ?? throw new ToolException(t.Format("Tool.NotStraight", wall.Id.Value));
 
     /// <summary>The given type, or the project's default when <paramref name="typeId"/> is null.</summary>
-    public static T TypeOrDefault<T>(Document document, long? typeId, ElementId defaultId, string what)
-        where T : ElementType
+    /// <param name="categoryKey">Text key naming the category in the plural, e.g. "Tool.CatWalls".</param>
+    public static TType TypeOrDefault<TType>(UiText t, Document document, long? typeId, ElementId defaultId, string categoryKey)
+        where TType : ElementType
     {
         if (typeId is null)
         {
-            return document.GetElement(defaultId) as T
-                ?? throw new ToolException($"The project has no default {what}. Pass the typeId of an existing {what.Replace(" type", "")}.");
+            return document.GetElement(defaultId) as TType
+                ?? throw new ToolException(t.Format("Tool.NoDefaultType", t[categoryKey]));
         }
 
-        return document.GetElement(new ElementId(typeId.Value)) as T
-            ?? throw new ToolException($"Element {typeId} is not a {what}.");
+        return document.GetElement(new ElementId(typeId.Value)) as TType
+            ?? throw new ToolException(t.Format("Tool.NotAType", typeId, t[categoryKey]));
     }
 
-    public static FamilySymbol FamilyType(Document document, long? typeId, BuiltInCategory category, string what)
+    public static FamilySymbol FamilyType(UiText t, Document document, long? typeId, BuiltInCategory category, string categoryKey)
     {
         ElementId defaultId = document.GetDefaultFamilyTypeId(new ElementId(category));
-        FamilySymbol symbol = TypeOrDefault<FamilySymbol>(document, typeId, defaultId, what);
+        FamilySymbol symbol = TypeOrDefault<FamilySymbol>(t, document, typeId, defaultId, categoryKey);
         return symbol.Category?.Id.Value == (long)category
             ? symbol
-            : throw new ToolException($"Type {symbol.Id.Value} ({symbol.FamilyName}: {symbol.Name}) is not a {what}.");
+            : throw new ToolException(t.Format("Tool.WrongCategoryType", symbol.Id.Value, $"{symbol.FamilyName}: {symbol.Name}", t[categoryKey]));
     }
 
     public static string Mm(double value) => $"{value:0} mm";

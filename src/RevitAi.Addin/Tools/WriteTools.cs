@@ -4,6 +4,7 @@ using Autodesk.Revit.DB.Architecture;
 using Autodesk.Revit.DB.Structure;
 using RevitAi.Addin.Dispatch;
 using RevitAi.Core.Geometry;
+using RevitAi.Core.Localization;
 using RevitAi.Core.Tools;
 
 namespace RevitAi.Addin.Tools;
@@ -11,7 +12,7 @@ namespace RevitAi.Addin.Tools;
 // Phase 2 write tools (docs/REVIT_TOOLS.md). All lengths/coordinates in mm, model coordinates (ADR-026).
 // Validate() never changes the model; Apply() runs inside PlanExecutor's transaction.
 
-public sealed class CreateWallTool(RevitDispatcher dispatcher) : RevitWriteTool(dispatcher)
+public sealed class CreateWallTool(RevitDispatcher dispatcher, TextSource text) : RevitWriteTool(dispatcher, text)
 {
     private const double MinLengthMm = 10;
     private const double DefaultHeightMm = 3000;
@@ -42,8 +43,8 @@ public sealed class CreateWallTool(RevitDispatcher dispatcher) : RevitWriteTool(
     protected override string Validate(Document document, JsonElement arguments)
     {
         Inputs inputs = Resolve(document, arguments);
-        return $"Create wall '{inputs.Type.Name}' on {inputs.Level.Name}, {WriteArgs.Mm(inputs.LengthMm)} long, " +
-               $"{WriteArgs.Mm(inputs.HeightMm)} high, from ({inputs.Start.X:0}, {inputs.Start.Y:0}) to ({inputs.End.X:0}, {inputs.End.Y:0})";
+        return T.Format("Tool.WallSummary", inputs.Type.Name, inputs.Level.Name, WriteArgs.Mm(inputs.LengthMm), WriteArgs.Mm(inputs.HeightMm),
+            inputs.Start.X, inputs.Start.Y, inputs.End.X, inputs.End.Y);
     }
 
     public override OperationResult Apply(Document document, JsonElement arguments)
@@ -59,29 +60,30 @@ public sealed class CreateWallTool(RevitDispatcher dispatcher) : RevitWriteTool(
             false,
             false);
         return new OperationResult(wall.Id.Value,
-            $"Created wall {wall.Id.Value} ('{inputs.Type.Name}', {WriteArgs.Mm(inputs.LengthMm)}) on {inputs.Level.Name}");
+            T.Format("Tool.WallCreated", wall.Id.Value, inputs.Type.Name, WriteArgs.Mm(inputs.LengthMm), inputs.Level.Name));
     }
 
-    private static Inputs Resolve(Document document, JsonElement arguments)
+    private Inputs Resolve(Document document, JsonElement arguments)
     {
-        Level level = WriteArgs.Level(document, arguments.GetProperty("levelId").GetInt64());
+        Level level = WriteArgs.Level(T, document, arguments.GetProperty("levelId").GetInt64());
         WallType type = WriteArgs.TypeOrDefault<WallType>(
+            T,
             document,
             RevitRead.OptionalLong(arguments, "wallTypeId"),
             document.GetDefaultElementTypeId(ElementTypeGroup.WallType),
-            "wall type");
+            "Tool.CatWalls");
         Point2 start = WriteArgs.Point(arguments, "start");
         Point2 end = WriteArgs.Point(arguments, "end");
         double length = Polygon2D.Distance(start, end);
         if (length < MinLengthMm)
         {
-            throw new ToolException($"The wall would be {length:0} mm long; walls must be at least {MinLengthMm:0} mm.");
+            throw new ToolException(T.Format("Tool.WallTooShort", WriteArgs.Mm(length), WriteArgs.Mm(MinLengthMm)));
         }
 
         double height = WriteArgs.OptionalNumber(arguments, "heightMm") ?? DefaultHeightMm;
         if (height <= 0 || height > MaxHeightMm)
         {
-            throw new ToolException($"Wall height must be between 0 and {MaxHeightMm:0} mm.");
+            throw new ToolException(T.Format("Tool.WallHeightRange", WriteArgs.Mm(MaxHeightMm)));
         }
 
         return new Inputs(level, type, start, end, length, height);
@@ -90,7 +92,7 @@ public sealed class CreateWallTool(RevitDispatcher dispatcher) : RevitWriteTool(
     private sealed record Inputs(Level Level, WallType Type, Point2 Start, Point2 End, double LengthMm, double HeightMm);
 }
 
-public sealed class ModifyWallTool(RevitDispatcher dispatcher) : RevitWriteTool(dispatcher)
+public sealed class ModifyWallTool(RevitDispatcher dispatcher, TextSource text) : RevitWriteTool(dispatcher, text)
 {
     private const double MinLengthMm = 10;
 
@@ -121,39 +123,40 @@ public sealed class ModifyWallTool(RevitDispatcher dispatcher) : RevitWriteTool(
         string end = arguments.GetProperty("end").GetString()!;
         if (distance == 0)
         {
-            throw new ToolException("distanceMm must not be 0.");
+            throw new ToolException(T["Tool.ModifyZero"]);
         }
 
-        long? wallId = WriteArgs.IdOrReference(arguments, "wallId");
+        string endText = T[end == "end" ? "Tool.EndEnd" : "Tool.EndStart"];
+        long? wallId = WriteArgs.IdOrReference(T, arguments, "wallId");
         if (wallId is null)
         {
-            return $"Change the length of {arguments.GetProperty("wallId").GetString()} by {distance:+0;-0} mm at its {end}";
+            return T.Format("Tool.ModifyReferenceSummary", arguments.GetProperty("wallId").GetString()!, distance, endText);
         }
 
         (double oldLength, double newLength, _, _) = Compute(document, wallId.Value, end, distance);
-        return $"Wall {wallId}: {WriteArgs.Mm(oldLength)} → {WriteArgs.Mm(newLength)} (moves its {end} point)";
+        return T.Format("Tool.ModifySummary", wallId, WriteArgs.Mm(oldLength), WriteArgs.Mm(newLength), endText);
     }
 
     public override OperationResult Apply(Document document, JsonElement arguments)
     {
-        long wallId = WriteArgs.Id(arguments, "wallId");
+        long wallId = WriteArgs.Id(T, arguments, "wallId");
         string end = arguments.GetProperty("end").GetString()!;
         (double oldLength, double newLength, XYZ start, XYZ finish) =
             Compute(document, wallId, end, arguments.GetProperty("distanceMm").GetDouble());
 
-        var location = (LocationCurve)WriteArgs.Wall(document, wallId).Location;
+        var location = (LocationCurve)WriteArgs.Wall(T, document, wallId).Location;
         location.Curve = Line.CreateBound(start, finish);
-        return new OperationResult(wallId, $"Wall {wallId}: {WriteArgs.Mm(oldLength)} → {WriteArgs.Mm(newLength)}");
+        return new OperationResult(wallId, T.Format("Tool.ModifyDone", wallId, WriteArgs.Mm(oldLength), WriteArgs.Mm(newLength)));
     }
 
-    private static (double OldLengthMm, double NewLengthMm, XYZ Start, XYZ End) Compute(Document document, long wallId, string end, double distanceMm)
+    private (double OldLengthMm, double NewLengthMm, XYZ Start, XYZ End) Compute(Document document, long wallId, string end, double distanceMm)
     {
-        Line line = WriteArgs.WallLine(WriteArgs.Wall(document, wallId));
+        Line line = WriteArgs.WallLine(T, WriteArgs.Wall(T, document, wallId));
         double oldLength = UnitUtils.ConvertFromInternalUnits(line.Length, UnitTypeId.Millimeters);
         double newLength = oldLength + distanceMm;
         if (newLength < MinLengthMm)
         {
-            throw new ToolException($"Wall {wallId} is {WriteArgs.Mm(oldLength)} long; it can't be shortened by {Math.Abs(distanceMm):0} mm.");
+            throw new ToolException(T.Format("Tool.ModifyTooShort", wallId, WriteArgs.Mm(oldLength), WriteArgs.Mm(Math.Abs(distanceMm))));
         }
 
         XYZ offset = line.Direction * RevitRead.Feet(distanceMm);
@@ -163,7 +166,7 @@ public sealed class ModifyWallTool(RevitDispatcher dispatcher) : RevitWriteTool(
     }
 }
 
-public sealed class CreateRoomTool(RevitDispatcher dispatcher) : RevitWriteTool(dispatcher)
+public sealed class CreateRoomTool(RevitDispatcher dispatcher, TextSource text) : RevitWriteTool(dispatcher, text)
 {
     public override string Name => "create_room";
 
@@ -189,15 +192,17 @@ public sealed class CreateRoomTool(RevitDispatcher dispatcher) : RevitWriteTool(
 
     protected override string Validate(Document document, JsonElement arguments)
     {
-        Level level = WriteArgs.Level(document, arguments.GetProperty("levelId").GetInt64());
+        Level level = WriteArgs.Level(T, document, arguments.GetProperty("levelId").GetInt64());
         Point2 point = WriteArgs.Point(arguments, "point");
         string? name = RevitRead.OptionalString(arguments, "name");
-        return $"Create room{(name is null ? "" : $" '{name}'")} on {level.Name} at ({point.X:0}, {point.Y:0})";
+        return name is null
+            ? T.Format("Tool.RoomSummary", level.Name, point.X, point.Y)
+            : T.Format("Tool.RoomSummaryNamed", name, level.Name, point.X, point.Y);
     }
 
     public override OperationResult Apply(Document document, JsonElement arguments)
     {
-        Level level = WriteArgs.Level(document, arguments.GetProperty("levelId").GetInt64());
+        Level level = WriteArgs.Level(T, document, arguments.GetProperty("levelId").GetInt64());
         Point2 point = WriteArgs.Point(arguments, "point");
         Room room = document.Create.NewRoom(level, new UV(RevitRead.Feet(point.X), RevitRead.Feet(point.Y)));
 
@@ -214,16 +219,14 @@ public sealed class CreateRoomTool(RevitDispatcher dispatcher) : RevitWriteTool(
         document.Regenerate();
         if (room.Area <= 0)
         {
-            throw new ToolException(
-                $"The point ({point.X:0}, {point.Y:0}) isn't inside an area enclosed by walls or room separation lines, so the room would not be enclosed.");
+            throw new ToolException(T.Format("Tool.RoomNotEnclosed", point.X, point.Y));
         }
 
-        return new OperationResult(room.Id.Value,
-            $"Created room {room.Number} '{room.Name}' ({RevitRead.M2(room.Area)} m²) on {level.Name}");
+        return new OperationResult(room.Id.Value, T.Format("Tool.RoomCreated", room.Number, room.Name, RevitRead.M2(room.Area), level.Name));
     }
 }
 
-public sealed class CreateDoorTool(RevitDispatcher dispatcher) : RevitWriteTool(dispatcher)
+public sealed class CreateDoorTool(RevitDispatcher dispatcher, TextSource text) : RevitWriteTool(dispatcher, text)
 {
     public override string Name => "create_door";
 
@@ -247,20 +250,19 @@ public sealed class CreateDoorTool(RevitDispatcher dispatcher) : RevitWriteTool(
 
     protected override string Validate(Document document, JsonElement arguments)
     {
-        FamilySymbol type = WriteArgs.FamilyType(document, RevitRead.OptionalLong(arguments, "doorTypeId"), BuiltInCategory.OST_Doors, "door type");
-        return HostedPlacement.Validate(document, arguments, "door", type);
+        FamilySymbol type = WriteArgs.FamilyType(T, document, RevitRead.OptionalLong(arguments, "doorTypeId"), BuiltInCategory.OST_Doors, "Tool.CatDoors");
+        return HostedPlacement.Validate(T, document, arguments, T["Tool.Door"], type);
     }
 
     public override OperationResult Apply(Document document, JsonElement arguments)
     {
-        FamilySymbol type = WriteArgs.FamilyType(document, RevitRead.OptionalLong(arguments, "doorTypeId"), BuiltInCategory.OST_Doors, "door type");
-        FamilyInstance door = HostedPlacement.Place(document, arguments, type, "door");
-        return new OperationResult(door.Id.Value,
-            $"Placed door {door.Id.Value} ('{type.FamilyName}: {type.Name}') in wall {door.Host.Id.Value}");
+        FamilySymbol type = WriteArgs.FamilyType(T, document, RevitRead.OptionalLong(arguments, "doorTypeId"), BuiltInCategory.OST_Doors, "Tool.CatDoors");
+        FamilyInstance door = HostedPlacement.Place(T, document, arguments, type, T["Tool.Door"]);
+        return new OperationResult(door.Id.Value, T.Format("Tool.DoorPlaced", door.Id.Value, $"{type.FamilyName}: {type.Name}", door.Host.Id.Value));
     }
 }
 
-public sealed class CreateWindowTool(RevitDispatcher dispatcher) : RevitWriteTool(dispatcher)
+public sealed class CreateWindowTool(RevitDispatcher dispatcher, TextSource text) : RevitWriteTool(dispatcher, text)
 {
     private const double MaxSillMm = 10_000;
 
@@ -288,36 +290,36 @@ public sealed class CreateWindowTool(RevitDispatcher dispatcher) : RevitWriteToo
 
     protected override string Validate(Document document, JsonElement arguments)
     {
-        FamilySymbol type = WriteArgs.FamilyType(document, RevitRead.OptionalLong(arguments, "windowTypeId"), BuiltInCategory.OST_Windows, "window type");
+        FamilySymbol type = WriteArgs.FamilyType(T, document, RevitRead.OptionalLong(arguments, "windowTypeId"), BuiltInCategory.OST_Windows, "Tool.CatWindows");
         double? sill = Sill(arguments);
-        return HostedPlacement.Validate(document, arguments, "window", type) + (sill is null ? "" : $", sill {WriteArgs.Mm(sill.Value)}");
+        return HostedPlacement.Validate(T, document, arguments, T["Tool.Window"], type)
+               + (sill is null ? "" : T.Format("Tool.SillSuffix", WriteArgs.Mm(sill.Value)));
     }
 
     public override OperationResult Apply(Document document, JsonElement arguments)
     {
-        FamilySymbol type = WriteArgs.FamilyType(document, RevitRead.OptionalLong(arguments, "windowTypeId"), BuiltInCategory.OST_Windows, "window type");
-        FamilyInstance window = HostedPlacement.Place(document, arguments, type, "window");
+        FamilySymbol type = WriteArgs.FamilyType(T, document, RevitRead.OptionalLong(arguments, "windowTypeId"), BuiltInCategory.OST_Windows, "Tool.CatWindows");
+        FamilyInstance window = HostedPlacement.Place(T, document, arguments, type, T["Tool.Window"]);
 
         if (Sill(arguments) is { } sill)
         {
             Parameter? parameter = window.get_Parameter(BuiltInParameter.INSTANCE_SILL_HEIGHT_PARAM);
             if (parameter is null || parameter.IsReadOnly)
             {
-                throw new ToolException($"Window type '{type.Name}' has no editable sill height.");
+                throw new ToolException(T.Format("Tool.SillNotEditable", type.Name));
             }
 
             parameter.Set(RevitRead.Feet(sill));
         }
 
-        return new OperationResult(window.Id.Value,
-            $"Placed window {window.Id.Value} ('{type.FamilyName}: {type.Name}') in wall {window.Host.Id.Value}");
+        return new OperationResult(window.Id.Value, T.Format("Tool.WindowPlaced", window.Id.Value, $"{type.FamilyName}: {type.Name}", window.Host.Id.Value));
     }
 
-    private static double? Sill(JsonElement arguments)
+    private double? Sill(JsonElement arguments)
     {
         double? sill = WriteArgs.OptionalNumber(arguments, "sillHeightMm");
         return sill is < 0 or > MaxSillMm
-            ? throw new ToolException($"sillHeightMm must be between 0 and {MaxSillMm:0} mm.")
+            ? throw new ToolException(T.Format("Tool.SillRange", WriteArgs.Mm(MaxSillMm)))
             : sill;
     }
 }
@@ -325,26 +327,26 @@ public sealed class CreateWindowTool(RevitDispatcher dispatcher) : RevitWriteToo
 /// <summary>Shared placement of doors and windows in a straight host wall.</summary>
 internal static class HostedPlacement
 {
-    public static string Validate(Document document, JsonElement arguments, string what, FamilySymbol type)
+    public static string Validate(UiText t, Document document, JsonElement arguments, string what, FamilySymbol type)
     {
         double offset = arguments.GetProperty("offsetAlongWallMm").GetDouble();
-        long? wallId = WriteArgs.IdOrReference(arguments, "wallId");
-        string host = wallId is null ? arguments.GetProperty("wallId").GetString()! : $"wall {wallId}";
+        long? wallId = WriteArgs.IdOrReference(t, arguments, "wallId");
+        string host = wallId is null ? arguments.GetProperty("wallId").GetString()! : t.Format("Tool.WallRef", wallId);
 
         if (wallId is not null)
         {
-            CheckOffset(WriteArgs.WallLine(WriteArgs.Wall(document, wallId.Value)), offset);
+            CheckOffset(t, WriteArgs.WallLine(t, WriteArgs.Wall(t, document, wallId.Value)), offset);
         }
 
-        return $"Place {what} '{type.FamilyName}: {type.Name}' in {host}, centred {WriteArgs.Mm(offset)} from its start";
+        return t.Format("Tool.HostedSummary", what, $"{type.FamilyName}: {type.Name}", host, WriteArgs.Mm(offset));
     }
 
-    public static FamilyInstance Place(Document document, JsonElement arguments, FamilySymbol type, string what)
+    public static FamilyInstance Place(UiText t, Document document, JsonElement arguments, FamilySymbol type, string what)
     {
-        Wall wall = WriteArgs.Wall(document, WriteArgs.Id(arguments, "wallId"));
-        Line line = WriteArgs.WallLine(wall);
+        Wall wall = WriteArgs.Wall(t, document, WriteArgs.Id(t, arguments, "wallId"));
+        Line line = WriteArgs.WallLine(t, wall);
         double offset = arguments.GetProperty("offsetAlongWallMm").GetDouble();
-        double lengthMm = CheckOffset(line, offset);
+        double lengthMm = CheckOffset(t, line, offset);
 
         if (!type.IsActive)
         {
@@ -352,25 +354,25 @@ internal static class HostedPlacement
         }
 
         Level level = document.GetElement(wall.LevelId) as Level
-            ?? throw new ToolException($"Wall {wall.Id.Value} has no base level.");
+            ?? throw new ToolException(t.Format("Tool.WallNoLevel", wall.Id.Value));
         XYZ point = line.Evaluate(offset / lengthMm, true);
         FamilyInstance instance = document.Create.NewFamilyInstance(point, type, wall, level, StructuralType.NonStructural);
 
         return instance.Host?.Id == wall.Id
             ? instance
-            : throw new ToolException($"The {what} could not be hosted in wall {wall.Id.Value}.");
+            : throw new ToolException(t.Format("Tool.NotHosted", what, wall.Id.Value));
     }
 
-    private static double CheckOffset(Line line, double offsetMm)
+    private static double CheckOffset(UiText t, Line line, double offsetMm)
     {
         double lengthMm = UnitUtils.ConvertFromInternalUnits(line.Length, UnitTypeId.Millimeters);
         return offsetMm < 0 || offsetMm > lengthMm
-            ? throw new ToolException($"offsetAlongWallMm {offsetMm:0} is outside the wall, which is {lengthMm:0} mm long.")
+            ? throw new ToolException(t.Format("Tool.OffsetOutside", WriteArgs.Mm(offsetMm), WriteArgs.Mm(lengthMm)))
             : lengthMm;
     }
 }
 
-public sealed class CreateFloorTool(RevitDispatcher dispatcher) : RevitWriteTool(dispatcher)
+public sealed class CreateFloorTool(RevitDispatcher dispatcher, TextSource text) : RevitWriteTool(dispatcher, text)
 {
     private const double MinEdgeMm = 10;
 
@@ -402,8 +404,7 @@ public sealed class CreateFloorTool(RevitDispatcher dispatcher) : RevitWriteTool
     protected override string Validate(Document document, JsonElement arguments)
     {
         Inputs inputs = Resolve(document, arguments);
-        return $"Create floor '{inputs.Type.Name}' on {inputs.Level.Name}, {inputs.Boundary.Count} corners, " +
-               $"{Polygon2D.Area(inputs.Boundary) / 1_000_000:0.##} m²";
+        return T.Format("Tool.FloorSummary", inputs.Type.Name, inputs.Level.Name, inputs.Boundary.Count, Polygon2D.Area(inputs.Boundary) / 1_000_000);
     }
 
     public override OperationResult Apply(Document document, JsonElement arguments)
@@ -419,34 +420,35 @@ public sealed class CreateFloorTool(RevitDispatcher dispatcher) : RevitWriteTool
 
         Floor floor = Floor.Create(document, [loop], inputs.Type.Id, inputs.Level.Id);
         return new OperationResult(floor.Id.Value,
-            $"Created floor {floor.Id.Value} ('{inputs.Type.Name}', {Polygon2D.Area(inputs.Boundary) / 1_000_000:0.##} m²) on {inputs.Level.Name}");
+            T.Format("Tool.FloorCreated", floor.Id.Value, inputs.Type.Name, Polygon2D.Area(inputs.Boundary) / 1_000_000, inputs.Level.Name));
     }
 
-    private static Inputs Resolve(Document document, JsonElement arguments)
+    private Inputs Resolve(Document document, JsonElement arguments)
     {
-        Level level = WriteArgs.Level(document, arguments.GetProperty("levelId").GetInt64());
+        Level level = WriteArgs.Level(T, document, arguments.GetProperty("levelId").GetInt64());
         FloorType type = WriteArgs.TypeOrDefault<FloorType>(
+            T,
             document,
             RevitRead.OptionalLong(arguments, "floorTypeId"),
             document.GetDefaultElementTypeId(ElementTypeGroup.FloorType),
-            "floor type");
+            "Tool.CatFloors");
 
         List<Point2> boundary = arguments.GetProperty("boundary").EnumerateArray()
             .Select(p => new Point2(p.GetProperty("x").GetDouble(), p.GetProperty("y").GetDouble()))
             .ToList();
         if (boundary.Count < 3)
         {
-            throw new ToolException("A floor boundary needs at least 3 points.");
+            throw new ToolException(T["Tool.FloorTooFewPoints"]);
         }
 
         if (Polygon2D.MinEdgeLength(boundary) < MinEdgeMm)
         {
-            throw new ToolException($"Boundary edges must be at least {MinEdgeMm:0} mm long (check for repeated points).");
+            throw new ToolException(T.Format("Tool.FloorShortEdge", WriteArgs.Mm(MinEdgeMm)));
         }
 
         if (!Polygon2D.IsSimple(boundary))
         {
-            throw new ToolException("The boundary crosses or touches itself.");
+            throw new ToolException(T["Tool.FloorSelfIntersects"]);
         }
 
         return new Inputs(level, type, boundary);

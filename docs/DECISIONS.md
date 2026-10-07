@@ -418,5 +418,6 @@ Status: Accepted (2026-10-07)
 Decision: panel texts exist in English and Romanian (`UiText`); English is the default, set with `Language` in `settings.json` or the panel's language button.
 
 - The AI's instructions stay in English for reliability. They state the interface language, and the AI answers in the language the user writes in.
-- Not yet localized: plan summaries and step outcomes produced by the tools (English), and Revit's own warnings (Revit's language).
+- Plan summaries, step outcomes and failure reasons from the write tools and the plan executor follow the panel language (`TextSource`, shared and switchable at runtime).
+- Not localized: Revit's own warnings (they come in Revit's language) and errors from read tools (seen only by the AI, which answers in the user's language).
 - A unit test enforces that every English text has a Romanian translation with the same placeholders.

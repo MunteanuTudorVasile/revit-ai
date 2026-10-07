@@ -79,5 +79,5 @@ public class UiTextTests
     }
 
     private static HashSet<string> Placeholders(string text) =>
-        Regex.Matches(text, @"\{\d+\}").Select(m => m.Value).ToHashSet();
+        Regex.Matches(text, @"\{(\d+)(:[^}]*)?\}").Select(m => m.Groups[1].Value).ToHashSet();
 }

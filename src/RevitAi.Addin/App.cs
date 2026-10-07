@@ -13,6 +13,7 @@ using RevitAi.Addin.UI;
 using RevitAi.Core.Ai;
 using RevitAi.Core.Context;
 using RevitAi.Core.Infrastructure;
+using RevitAi.Core.Localization;
 using RevitAi.Core.Planning;
 using RevitAi.Core.Standards;
 using RevitAi.Core.Tools;
@@ -61,11 +62,12 @@ public sealed class App : IExternalApplication
                 _log.Warning(standardsProblem);
             }
 
-            ToolRegistry registry = CreateToolRegistry(dispatcher, standardsPath);
+            var text = new TextSource(new UiText(settings.Language));
+            ToolRegistry registry = CreateToolRegistry(dispatcher, standardsPath, text);
             var orchestrator = new Orchestrator(ai, registry, _log, settings.MaxAiSteps);
             var history = new ActionHistory(Path.Combine(LocalDataDir, "history.jsonl"), _log);
             _viewModel = new AssistantViewModel(
-                dispatcher, orchestrator, new PlanExecutor(registry), history, keyStore, settings, settingsPath, _log);
+                dispatcher, orchestrator, new PlanExecutor(registry, text), history, keyStore, text, settings, settingsPath, _log);
 
             // Dockable panes can only be registered during startup.
             application.RegisterDockablePane(PaneId, "Revit AI", new AssistantPaneProvider(new AssistantPane(_viewModel)));
@@ -100,7 +102,7 @@ public sealed class App : IExternalApplication
         _viewModel?.UpdateContext(ContextReader.Read(e.GetDocument()));
     }
 
-    private static ToolRegistry CreateToolRegistry(RevitDispatcher dispatcher, string standardsPath)
+    private static ToolRegistry CreateToolRegistry(RevitDispatcher dispatcher, string standardsPath, TextSource text)
     {
         var registry = new ToolRegistry();
         registry.Register(new GetProjectInfoTool(dispatcher));
@@ -116,12 +118,12 @@ public sealed class App : IExternalApplication
         registry.Register(new GetElementRoomTool(dispatcher));
         registry.Register(new GetRoomBoundaryTool(dispatcher));
 
-        registry.Register(new CreateWallTool(dispatcher));
-        registry.Register(new ModifyWallTool(dispatcher));
-        registry.Register(new CreateRoomTool(dispatcher));
-        registry.Register(new CreateDoorTool(dispatcher));
-        registry.Register(new CreateWindowTool(dispatcher));
-        registry.Register(new CreateFloorTool(dispatcher));
+        registry.Register(new CreateWallTool(dispatcher, text));
+        registry.Register(new ModifyWallTool(dispatcher, text));
+        registry.Register(new CreateRoomTool(dispatcher, text));
+        registry.Register(new CreateDoorTool(dispatcher, text));
+        registry.Register(new CreateWindowTool(dispatcher, text));
+        registry.Register(new CreateFloorTool(dispatcher, text));
         return registry;
     }
 

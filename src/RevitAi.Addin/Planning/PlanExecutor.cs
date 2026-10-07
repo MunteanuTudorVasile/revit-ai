@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Autodesk.Revit.DB;
 using RevitAi.Addin.Tools;
+using RevitAi.Core.Localization;
 using RevitAi.Core.Planning;
 using RevitAi.Core.Tools;
 
@@ -17,10 +18,12 @@ public sealed class PlanExecutor
     private const int MaxUndoNameLength = 60;
 
     private readonly ToolRegistry _registry;
+    private readonly TextSource _text;
 
-    public PlanExecutor(ToolRegistry registry)
+    public PlanExecutor(ToolRegistry registry, TextSource text)
     {
         _registry = registry;
+        _text = text;
     }
 
     public PlanRunResult Run(Document document, PendingPlan plan, bool apply)
@@ -61,7 +64,7 @@ public sealed class PlanExecutor
     {
         if (!_registry.TryGet(operation.ToolName, out ITool registered) || registered is not RevitWriteTool tool)
         {
-            return Failed(operation, $"'{operation.ToolName}' is not an available write tool.", []);
+            return Failed(operation, _text.Current.Format("Plan.NotWriteTool", operation.ToolName), []);
         }
 
         var failures = new FailureCollector();
@@ -84,14 +87,14 @@ public sealed class PlanExecutor
                 transaction.RollBack();
             }
 
-            string reason = ex is ToolException ? ex.Message : $"Revit refused the operation: {ex.Message}";
+            string reason = ex is ToolException ? ex.Message : _text.Current.Format("Plan.RevitRefused", ex.Message);
             return Failed(operation, reason, failures.Warnings);
         }
 
         TransactionStatus status = transaction.Commit();
         if (status != TransactionStatus.Committed)
         {
-            string reason = failures.Errors.Count > 0 ? string.Join(" ", failures.Errors) : $"Revit did not accept the change ({status}).";
+            string reason = failures.Errors.Count > 0 ? string.Join(" ", failures.Errors) : _text.Current.Format("Plan.NotAccepted", status);
             return Failed(operation, reason, failures.Warnings);
         }
 
