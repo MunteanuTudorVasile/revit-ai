@@ -100,7 +100,8 @@ public sealed class ModifyWallTool(RevitDispatcher dispatcher, TextSource text) 
 
     public override string Description =>
         "Proposes making a straight wall longer or shorter by moving one of its ends along the wall. " +
-        "Positive distanceMm extends, negative shortens. Connected walls may adjust their joins.";
+        "Positive distanceMm extends, negative shortens. The moved end is disconnected from walls joined at that end " +
+        "(Revit would otherwise keep it at the join).";
 
     public override string ProgressLabel => "Checking the wall change…";
 
@@ -144,8 +145,20 @@ public sealed class ModifyWallTool(RevitDispatcher dispatcher, TextSource text) 
         (double oldLength, double newLength, XYZ start, XYZ finish) =
             Compute(document, wallId, end, arguments.GetProperty("distanceMm").GetDouble());
 
-        var location = (LocationCurve)WriteArgs.Wall(T, document, wallId).Location;
-        location.Curve = Line.CreateBound(start, finish);
+        Wall wall = WriteArgs.Wall(T, document, wallId);
+
+        // Verified in Revit 2026 (self-test): a wall joined at the moved end stays at the join unless joining is disallowed there.
+        WallUtils.DisallowWallJoinAtEnd(wall, end == "end" ? 1 : 0);
+        ((LocationCurve)wall.Location).Curve = Line.CreateBound(start, finish);
+        document.Regenerate();
+
+        // Post-execution validation: never report a length Revit did not actually apply.
+        double actual = UnitUtils.ConvertFromInternalUnits(((LocationCurve)wall.Location).Curve.Length, UnitTypeId.Millimeters);
+        if (Math.Abs(actual - newLength) > 1)
+        {
+            throw new ToolException(T.Format("Tool.ModifyNotApplied", wallId, WriteArgs.Mm(newLength), WriteArgs.Mm(actual)));
+        }
+
         return new OperationResult(wallId, T.Format("Tool.ModifyDone", wallId, WriteArgs.Mm(oldLength), WriteArgs.Mm(newLength)));
     }
 

@@ -258,7 +258,8 @@ public sealed class PlaceFamilyInstancesTool(RevitDispatcher dispatcher, TextSou
         var placed = new List<long>();
         foreach (Point2 point in inputs.Points)
         {
-            var location = new XYZ(RevitRead.Feet(point.X), RevitRead.Feet(point.Y), inputs.Level.ProjectElevation);
+            // Z is an offset from the level for level-based placement (verified in Revit 2026 by the self-test), so 0 = on the level.
+            var location = new XYZ(RevitRead.Feet(point.X), RevitRead.Feet(point.Y), 0);
             FamilyInstance instance = document.Create.NewFamilyInstance(location, inputs.Type, inputs.Level, structural);
             if (inputs.RotationDegrees != 0)
             {

@@ -18,6 +18,19 @@ For a new session (e.g. Claude Code on the Windows PC). Read `CLAUDE.md`, `READM
 3. Manual checks M.1–M.7 at the top of `docs/SMOKE_TESTS.md`.
 4. Logs: `%LOCALAPPDATA%\RevitAi\logs\revitai-<date>.log`; Apply history: `%LOCALAPPDATA%\RevitAi\history.jsonl`.
 
+## First self-test (Revit 2026, 2026-10-07)
+
+45 passed, 3 failed, 0 skipped. Fixed afterwards:
+
+- `modify_wall` did not extend a wall joined at that end (Revit kept it at the join) and still reported success: the moved
+  end is now disconnected (`WallUtils.DisallowWallJoinAtEnd`) and the new length is verified after regeneration.
+- `place_family_instances` placed instances one level-height too high: the Z passed to `NewFamilyInstance` is an offset
+  from the level, so it is now 0.
+
+Confirmed working in Revit: add-in loading, every read/QA tool, plans with references, preview and failing-step rollback,
+views, tags, dimensions, schedules, sheets, sections, elevations (real direction), 3D, templates, grids, delete with
+dependents, refusals, `select_elements` inside a transaction group. Still untested: the panel, OpenAI, the dispatcher.
+
 ## Things only Revit can confirm (watch for these)
 
 - The add-in loads, the dockable pane registers, the dispatcher (ExternalEvent) round trip works.
