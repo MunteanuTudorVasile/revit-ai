@@ -9,7 +9,11 @@ public sealed record UserMessage(string Text) : AiItem;
 
 public sealed record AssistantMessage(string Text) : AiItem;
 
-public sealed record ToolCall(string Id, string Name, string ArgumentsJson) : AiItem;
+/// <param name="ExtraContentJson">
+/// Provider data attached to the call (e.g. Gemini's thought signature in <c>extra_content</c>), kept verbatim and sent back
+/// unchanged with the conversation (ADR-046).
+/// </param>
+public sealed record ToolCall(string Id, string Name, string ArgumentsJson, string? ExtraContentJson = null) : AiItem;
 
 public sealed record ToolOutput(string CallId, string Content) : AiItem;
 

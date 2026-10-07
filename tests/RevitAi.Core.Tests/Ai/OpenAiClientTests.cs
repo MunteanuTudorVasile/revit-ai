@@ -178,6 +178,61 @@ public class OpenAiClientTests
         Assert.Null(source.Current().ApiKey);
     }
 
+    [Fact]
+    public async Task Thought_signature_is_kept_and_sent_back_unchanged()
+    {
+        const string withSignature = """
+            {
+              "choices": [{
+                "message": {
+                  "role": "assistant",
+                  "content": null,
+                  "tool_calls": [{
+                    "id": "c1", "type": "function",
+                    "function": { "name": "get_thing", "arguments": "{\"id\":1}" },
+                    "extra_content": { "google": { "thought_signature": "SIG-123" } }
+                  }]
+                }
+              }]
+            }
+            """;
+        (OpenAiClient first, _) = Create(HttpStatusCode.OK, withSignature, provider: AiProviders.Gemini);
+        ToolCall call = Assert.Single((await first.CompleteAsync(Request(new UserMessage("hi")), CancellationToken.None)).ToolCalls);
+
+        (OpenAiClient second, FakeHttpHandler handler) = Create(HttpStatusCode.OK, TextResponse, provider: AiProviders.Gemini);
+        await second.CompleteAsync(Request(new UserMessage("hi"), call, new ToolOutput("c1", "{}")), CancellationToken.None);
+
+        using JsonDocument body = JsonDocument.Parse(handler.RequestBody!);
+        JsonElement sent = body.RootElement.GetProperty("messages")[2].GetProperty("tool_calls")[0];
+        Assert.Equal("SIG-123", sent.GetProperty("extra_content").GetProperty("google").GetProperty("thought_signature").GetString());
+    }
+
+    [Fact]
+    public async Task Gemini_call_without_signature_gets_the_documented_placeholder()
+    {
+        (OpenAiClient client, FakeHttpHandler handler) = Create(HttpStatusCode.OK, TextResponse, provider: AiProviders.Gemini);
+
+        await client.CompleteAsync(
+            Request(new UserMessage("hi"), new ToolCall("c1", "get_thing", "{}"), new ToolOutput("c1", "{}")), CancellationToken.None);
+
+        using JsonDocument body = JsonDocument.Parse(handler.RequestBody!);
+        string signature = body.RootElement.GetProperty("messages")[2].GetProperty("tool_calls")[0]
+            .GetProperty("extra_content").GetProperty("google").GetProperty("thought_signature").GetString()!;
+        Assert.Equal("skip_thought_signature_validator", System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(signature)));
+    }
+
+    [Fact]
+    public async Task OpenAi_calls_carry_no_extra_content()
+    {
+        (OpenAiClient client, FakeHttpHandler handler) = Create(HttpStatusCode.OK, TextResponse);
+
+        await client.CompleteAsync(
+            Request(new UserMessage("hi"), new ToolCall("c1", "get_thing", "{}"), new ToolOutput("c1", "{}")), CancellationToken.None);
+
+        using JsonDocument body = JsonDocument.Parse(handler.RequestBody!);
+        Assert.False(body.RootElement.GetProperty("messages")[2].GetProperty("tool_calls")[0].TryGetProperty("extra_content", out _));
+    }
+
     [Theory]
     [InlineData("AIzaSyExample", "gemini")]
     [InlineData(" sk-proj-abc ", "openai")]

@@ -33,7 +33,7 @@ public sealed class OpenAiClient : IAiClient
 
         using var message = new HttpRequestMessage(HttpMethod.Post, connection.Provider.Endpoint)
         {
-            Content = new StringContent(BuildBody(request, connection.Model).ToJsonString(), Encoding.UTF8, "application/json"),
+            Content = new StringContent(BuildBody(request, connection.Model, connection.Provider).ToJsonString(), Encoding.UTF8, "application/json"),
         };
         message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", connection.ApiKey);
 
@@ -48,7 +48,14 @@ public sealed class OpenAiClient : IAiClient
         return ParseResponse(body);
     }
 
-    internal static JsonObject BuildBody(AiRequest request, string model)
+    /// <summary>
+    /// Gemini 3 rejects a tool call sent back without its thought signature. For calls that have none (e.g. history from
+    /// another model), Google documents this placeholder, base64-encoded as the signature is binary.
+    /// </summary>
+    internal static readonly string SkipThoughtSignature =
+        Convert.ToBase64String(Encoding.UTF8.GetBytes("skip_thought_signature_validator"));
+
+    internal static JsonObject BuildBody(AiRequest request, string model, AiProvider? provider = null)
     {
         var messages = new JsonArray
         {
@@ -67,12 +74,25 @@ public sealed class OpenAiClient : IAiClient
                     messages.Add(new JsonObject { ["role"] = "assistant", ["content"] = null, ["tool_calls"] = pendingToolCalls });
                 }
 
-                pendingToolCalls.Add(new JsonObject
+                var toolCall = new JsonObject
                 {
                     ["id"] = call.Id,
                     ["type"] = "function",
                     ["function"] = new JsonObject { ["name"] = call.Name, ["arguments"] = call.ArgumentsJson },
-                });
+                };
+                if (call.ExtraContentJson is not null)
+                {
+                    toolCall["extra_content"] = JsonNode.Parse(call.ExtraContentJson);
+                }
+                else if (provider == AiProviders.Gemini)
+                {
+                    toolCall["extra_content"] = new JsonObject
+                    {
+                        ["google"] = new JsonObject { ["thought_signature"] = SkipThoughtSignature },
+                    };
+                }
+
+                pendingToolCalls.Add(toolCall);
                 continue;
             }
 
@@ -122,7 +142,8 @@ public sealed class OpenAiClient : IAiClient
                     toolCalls.Add(new ToolCall(
                         call.GetProperty("id").GetString()!,
                         function.GetProperty("name").GetString()!,
-                        function.GetProperty("arguments").GetString() ?? "{}"));
+                        function.GetProperty("arguments").GetString() ?? "{}",
+                        call.TryGetProperty("extra_content", out JsonElement extra) ? extra.GetRawText() : null));
                 }
             }
 
