@@ -574,3 +574,20 @@ Decision: a **Self-test** ribbon command runs about 50 scripted checks inside Re
 - Not covered, so tested manually: the panel UI, OpenAI, the dispatcher's threading, and Ctrl+Z after a real Apply.
 
 Reason: manual smoke testing does not scale with ~50 tools. One click plus one file makes every rebuild verifiable.
+
+---
+
+## ADR-046 — Choice of AI Service: OpenAI or Google Gemini
+
+Status: Accepted (2026-10-08); amends ADR-003 and ADR-032
+
+Decision: the AI service is chosen in the panel (API key section): **OpenAI** or **Google Gemini**. Both are reached with
+the same client, because Gemini offers an OpenAI-compatible Chat Completions endpoint that supports tools with strict
+schemas (Gemini 2.5 and later).
+
+- Each service has its own DPAPI-encrypted key file (`openai.key`, `gemini.key`); a key is only sent to its own service, and a key whose prefix shows it belongs to the other service is refused with a hint.
+- An optional model override can be set in the panel; empty uses the service default (`gpt-5`, `gemini-2.5-flash`; verify the current model lists).
+- Gemini's invalid-key answer (HTTP 400, array-shaped error body) is recognised as an invalid key.
+- Panel texts and the data notice name "the AI service you choose" instead of OpenAI (ADR-030).
+
+Reason: the user has no OpenAI API key; Gemini has a free tier. Further OpenAI-compatible services, or a Claude client, can be added the same way.

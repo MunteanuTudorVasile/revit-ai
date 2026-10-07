@@ -33,6 +33,7 @@ public sealed class AssistantViewModel : INotifyPropertyChanged
     private readonly PlanExecutor _executor;
     private readonly ActionHistory _history;
     private readonly ApiKeyStore _keyStore;
+    private readonly AiConnectionSource _connection;
     private readonly string _settingsPath;
     private readonly FileLog _log;
     private readonly Conversation _conversation = new();
@@ -57,6 +58,7 @@ public sealed class AssistantViewModel : INotifyPropertyChanged
         PlanExecutor executor,
         ActionHistory history,
         ApiKeyStore keyStore,
+        AiConnectionSource connection,
         TextSource text,
         AddinSettings settings,
         string settingsPath,
@@ -67,11 +69,12 @@ public sealed class AssistantViewModel : INotifyPropertyChanged
         _executor = executor;
         _history = history;
         _keyStore = keyStore;
+        _connection = connection;
         _settings = settings;
         _settingsPath = settingsPath;
         _log = log;
         _text = text;
-        _showKeyPanel = !keyStore.HasKey;
+        _showKeyPanel = !keyStore.HasKey(connection.Provider.Id);
 
         SendCommand = new AsyncCommand(SendAsync, () => !IsBusy);
         RefreshCommand = new AsyncCommand(async () => await ReadContextAsync());
@@ -181,7 +184,50 @@ public sealed class AssistantViewModel : INotifyPropertyChanged
 
     public bool NeedsConsent => _settings.ConsentAcceptedAt is null;
 
-    public bool HasApiKey => _keyStore.HasKey;
+    public bool HasApiKey => _keyStore.HasKey(_connection.Provider.Id);
+
+    public IReadOnlyList<AiProvider> Providers => AiProviders.All;
+
+    /// <summary>The AI service; each keeps its own key, so switching never sends one service's key to another.</summary>
+    public AiProvider SelectedProvider
+    {
+        get => _connection.Provider;
+        set
+        {
+            if (value == _connection.Provider)
+            {
+                return;
+            }
+
+            _connection.Provider = value;
+            SaveSettings(_settings with { AiProvider = value.Id });
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(HasApiKey));
+            OnPropertyChanged(nameof(ModelHint));
+            RemoveKeyCommand.RaiseCanExecuteChanged();
+            _log.Info($"AI service set to {value.DisplayName}.");
+        }
+    }
+
+    /// <summary>Optional model override; empty uses the service's default.</summary>
+    public string ModelName
+    {
+        get => _connection.Model ?? string.Empty;
+        set
+        {
+            string? model = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+            if (model == _connection.Model)
+            {
+                return;
+            }
+
+            _connection.Model = model;
+            SaveSettings(_settings with { AiModel = model });
+            OnPropertyChanged();
+        }
+    }
+
+    public string ModelHint => T.Format("ModelHint", _connection.Provider.DefaultModel, _connection.Provider.KeyUrl);
 
     public bool ShowKeyPanel
     {
@@ -236,7 +282,13 @@ public sealed class AssistantViewModel : INotifyPropertyChanged
 
         try
         {
-            _keyStore.Save(apiKey);
+            if (AiProviders.Recognise(apiKey) is { } owner && owner != _connection.Provider)
+            {
+                Say(T.Format("KeyLooksLikeOther", owner.DisplayName, _connection.Provider.DisplayName));
+                return;
+            }
+
+            _keyStore.Save(_connection.Provider.Id, apiKey);
             ShowKeyPanel = false;
             OnPropertyChanged(nameof(HasApiKey));
             RemoveKeyCommand.RaiseCanExecuteChanged();
@@ -254,7 +306,7 @@ public sealed class AssistantViewModel : INotifyPropertyChanged
     {
         try
         {
-            _keyStore.Delete();
+            _keyStore.Delete(_connection.Provider.Id);
             OnPropertyChanged(nameof(HasApiKey));
             RemoveKeyCommand.RaiseCanExecuteChanged();
             ShowKeyPanel = true;
@@ -285,6 +337,7 @@ public sealed class AssistantViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(T));
         OnPropertyChanged(nameof(ContextText));
         OnPropertyChanged(nameof(PlanHeader));
+        OnPropertyChanged(nameof(ModelHint));
         _log.Info($"Panel language set to {language}.");
     }
 

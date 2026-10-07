@@ -26,10 +26,12 @@ public class OpenAiClientTests
         { "choices": [{ "message": { "role": "assistant", "content": "Level 1." }, "finish_reason": "stop" }] }
         """;
 
-    private static (OpenAiClient Client, FakeHttpHandler Handler) Create(HttpStatusCode status, string body, string? apiKey = "sk-test")
+    private static (OpenAiClient Client, FakeHttpHandler Handler) Create(
+        HttpStatusCode status, string body, string? apiKey = "sk-test", AiProvider? provider = null)
     {
         var handler = new FakeHttpHandler(status, body);
-        return (new OpenAiClient(new HttpClient(handler), "test-model", () => apiKey), handler);
+        var connection = new AiConnection(provider ?? AiProviders.OpenAi, "test-model", apiKey);
+        return (new OpenAiClient(new HttpClient(handler), () => connection), handler);
     }
 
     private static AiRequest Request(params AiItem[] items) =>
@@ -42,7 +44,7 @@ public class OpenAiClientTests
 
         await client.CompleteAsync(Request(new UserMessage("hi")), CancellationToken.None);
 
-        Assert.Equal(OpenAiClient.Endpoint, handler.Request!.RequestUri);
+        Assert.Equal(AiProviders.OpenAi.Endpoint, handler.Request!.RequestUri);
         Assert.Equal("Bearer sk-test", handler.Request.Headers.Authorization!.ToString());
 
         using JsonDocument body = JsonDocument.Parse(handler.RequestBody!);
@@ -125,6 +127,64 @@ public class OpenAiClientTests
 
         Assert.Equal(expected, ex.Failure);
         Assert.Contains("nope", ex.Message);
+    }
+
+    [Fact]
+    public async Task Gemini_requests_go_to_googles_endpoint_with_the_gemini_key()
+    {
+        (OpenAiClient client, FakeHttpHandler handler) = Create(HttpStatusCode.OK, TextResponse, apiKey: "AIza-test", provider: AiProviders.Gemini);
+
+        await client.CompleteAsync(Request(new UserMessage("hi")), CancellationToken.None);
+
+        Assert.Equal("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", handler.Request!.RequestUri!.ToString());
+        Assert.Equal("Bearer AIza-test", handler.Request.Headers.Authorization!.ToString());
+    }
+
+    [Fact]
+    public async Task Gemini_invalid_key_as_400_with_array_body_is_an_invalid_key()
+    {
+        (OpenAiClient client, _) = Create(HttpStatusCode.BadRequest,
+            """[{ "error": { "code": 400, "message": "API key not valid. Please pass a valid API key.", "status": "INVALID_ARGUMENT" } }]""",
+            provider: AiProviders.Gemini);
+
+        var ex = await Assert.ThrowsAsync<AiServiceException>(
+            () => client.CompleteAsync(Request(new UserMessage("hi")), CancellationToken.None));
+
+        Assert.Equal(AiFailure.InvalidApiKey, ex.Failure);
+        Assert.Contains("API key not valid", ex.Message);
+    }
+
+    [Fact]
+    public async Task Other_400_errors_are_service_errors()
+    {
+        (OpenAiClient client, _) = Create(HttpStatusCode.BadRequest, """{ "error": { "message": "model not found" } }""");
+
+        var ex = await Assert.ThrowsAsync<AiServiceException>(
+            () => client.CompleteAsync(Request(new UserMessage("hi")), CancellationToken.None));
+
+        Assert.Equal(AiFailure.ServiceError, ex.Failure);
+        Assert.Contains("model not found", ex.Message);
+    }
+
+    [Fact]
+    public void Connection_uses_the_provider_default_model_unless_overridden()
+    {
+        var source = new AiConnectionSource(provider => provider == "gemini" ? "AIza" : null) { Provider = AiProviders.Gemini };
+
+        Assert.Equal((AiProviders.Gemini.DefaultModel, "AIza"), (source.Current().Model, source.Current().ApiKey));
+        source.Model = " gemini-x ";
+        Assert.Equal("gemini-x", source.Current().Model);
+        source.Provider = AiProviders.OpenAi;
+        Assert.Null(source.Current().ApiKey);
+    }
+
+    [Theory]
+    [InlineData("AIzaSyExample", "gemini")]
+    [InlineData(" sk-proj-abc ", "openai")]
+    [InlineData("something-else", null)]
+    public void Keys_are_recognised_by_prefix(string key, string? provider)
+    {
+        Assert.Equal(provider, AiProviders.Recognise(key)?.Id);
     }
 
     [Fact]

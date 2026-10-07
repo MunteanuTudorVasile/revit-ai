@@ -61,8 +61,13 @@ public sealed class App : IExternalApplication
             // Must be created here, inside Revit's API context (ADR-023).
             var dispatcher = new RevitDispatcher(TimeSpan.FromSeconds(settings.DispatcherTimeoutSeconds), _log);
             Http.Timeout = TimeSpan.FromSeconds(settings.AiRequestTimeoutSeconds);
-            var keyStore = new ApiKeyStore(Path.Combine(AppDataDir, "openai.key"));
-            var ai = new OpenAiClient(Http, settings.OpenAiModel, keyStore.TryLoad);
+            var keyStore = new ApiKeyStore(AppDataDir);
+            var connection = new AiConnectionSource(keyStore.TryLoad)
+            {
+                Provider = AiProviders.Find(settings.AiProvider),
+                Model = settings.AiModel,
+            };
+            var ai = new OpenAiClient(Http, connection.Current);
             string standardsPath = Path.Combine(AppDataDir, "standards.json");
             ProjectStandards.Load(standardsPath, out string? standardsProblem); // creates the template on first start
             if (standardsProblem is not null)
@@ -78,7 +83,7 @@ public sealed class App : IExternalApplication
             var executor = new PlanExecutor(registry, text);
             Services = new AddinServices(registry, executor, _log, LocalDataDir);
             _viewModel = new AssistantViewModel(
-                dispatcher, orchestrator, executor, history, keyStore, text, settings, settingsPath, _log);
+                dispatcher, orchestrator, executor, history, keyStore, connection, text, settings, settingsPath, _log);
 
             // Dockable panes can only be registered during startup.
             application.RegisterDockablePane(PaneId, "Revit AI", new AssistantPaneProvider(new AssistantPane(_viewModel)));
@@ -99,7 +104,7 @@ public sealed class App : IExternalApplication
             // Any document closing (a family, a background project) fires this; re-read what is actually active.
             application.ControlledApplication.DocumentClosed += (_, _) => _viewModel.RefreshContextQuietly();
 
-            _log.Info($"Revit AI started in Revit {application.ControlledApplication.VersionNumber} (model {settings.OpenAiModel}).");
+            _log.Info($"Revit AI started in Revit {application.ControlledApplication.VersionNumber} (AI: {connection.Provider.DisplayName}, model {connection.Current().Model}).");
             return Result.Succeeded;
         }
         catch (Exception ex)

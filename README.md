@@ -42,7 +42,7 @@ dotnet test tests/RevitAi.Core.Tests
 | File | Location |
 |---|---|
 | Settings | `%APPDATA%\RevitAi\settings.json` (created with defaults on first start) |
-| OpenAI API key | `%APPDATA%\RevitAi\openai.key` (DPAPI-encrypted for the Windows user; set from the panel) |
+| API keys | `%APPDATA%\RevitAi\openai.key`, `gemini.key` (DPAPI-encrypted for the Windows user; set from the panel) |
 | Project standards | `%APPDATA%\RevitAi\standards.json` (preferred types per category; see ADR-033) |
 | Logs | `%LOCALAPPDATA%\RevitAi\logs\revitai-YYYYMMDD.log` |
 | AI action history | `%LOCALAPPDATA%\RevitAi\history.jsonl` (one JSON line per Apply, successful or not) |
@@ -51,7 +51,8 @@ dotnet test tests/RevitAi.Core.Tests
 
 | Setting | Default | Meaning |
 |---|---|---|
-| `OpenAiModel` | `gpt-5` | OpenAI model used for answers. |
+| `AiProvider` | `openai` | AI service: `openai` or `gemini`. Chosen in the panel's API key section. |
+| `AiModel` | null | Model override; empty uses the service default (`gpt-5` / `gemini-2.5-flash`). Set in the panel. |
 | `AiRequestTimeoutSeconds` | 120 | How long to wait for OpenAI. |
 | `MaxAiSteps` | 12 | AI round trips per question before giving up. |
 | `DispatcherTimeoutSeconds` | 30 | How long to wait for Revit to run a request. |

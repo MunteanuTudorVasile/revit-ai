@@ -66,12 +66,12 @@ public sealed class AddinSettingsTests : IDisposable
     public void Saved_settings_round_trip_including_consent()
     {
         var consent = new DateTimeOffset(2026, 10, 7, 21, 0, 0, TimeSpan.Zero);
-        new AddinSettings { OpenAiModel = "model-x", ConsentAcceptedAt = consent }.Save(SettingsPath);
+        new AddinSettings { AiProvider = "gemini", AiModel = "model-x", ConsentAcceptedAt = consent }.Save(SettingsPath);
 
         AddinSettings settings = AddinSettings.Load(SettingsPath, out string? problem);
 
         Assert.Null(problem);
-        Assert.Equal("model-x", settings.OpenAiModel);
+        Assert.Equal(("gemini", "model-x"), (settings.AiProvider, settings.AiModel));
         Assert.Equal(consent, settings.ConsentAcceptedAt);
     }
 
@@ -79,16 +79,17 @@ public sealed class AddinSettingsTests : IDisposable
     public void Each_invalid_value_is_replaced_and_reported()
     {
         Directory.CreateDirectory(_dir);
-        File.WriteAllText(SettingsPath, """{ "OpenAiModel": " ", "MaxAiSteps": -1, "AiRequestTimeoutSeconds": 0, "DispatcherTimeoutSeconds": 5 }""");
+        File.WriteAllText(SettingsPath, """{ "AiProvider": "chatbot", "AiModel": " ", "MaxAiSteps": -1, "AiRequestTimeoutSeconds": 0, "DispatcherTimeoutSeconds": 5 }""");
 
         AddinSettings settings = AddinSettings.Load(SettingsPath, out string? problem);
 
         var defaults = new AddinSettings();
-        Assert.Equal(defaults.OpenAiModel, settings.OpenAiModel);
+        Assert.Equal(defaults.AiProvider, settings.AiProvider);
+        Assert.Null(settings.AiModel);
         Assert.Equal(defaults.MaxAiSteps, settings.MaxAiSteps);
         Assert.Equal(defaults.AiRequestTimeoutSeconds, settings.AiRequestTimeoutSeconds);
         Assert.Equal(5, settings.DispatcherTimeoutSeconds);
-        Assert.Contains("OpenAiModel", problem);
+        Assert.Contains("AiProvider", problem);
         Assert.Contains("MaxAiSteps", problem);
         Assert.Contains("AiRequestTimeoutSeconds", problem);
     }

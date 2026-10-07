@@ -8,38 +8,34 @@ using RevitAi.Core.Tools;
 namespace RevitAi.Core.Ai;
 
 /// <summary>
-/// OpenAI Chat Completions with strict function calling, over plain HttpClient
-/// (no SDK, to avoid assembly conflicts inside Revit; ADR-032).
+/// Chat Completions with strict function calling in the OpenAI format, over plain HttpClient (no SDK, to avoid assembly
+/// conflicts inside Revit; ADR-032). Works with any provider that accepts this format, e.g. OpenAI and Google Gemini (ADR-046).
 /// </summary>
 public sealed class OpenAiClient : IAiClient
 {
-    public static readonly Uri Endpoint = new("https://api.openai.com/v1/chat/completions");
-
     private readonly HttpClient _http;
-    private readonly string _model;
-    private readonly Func<string?> _apiKeyProvider;
+    private readonly Func<AiConnection> _connection;
 
-    /// <param name="apiKeyProvider">Read on every request so a newly saved key takes effect immediately.</param>
-    public OpenAiClient(HttpClient http, string model, Func<string?> apiKeyProvider)
+    /// <param name="connection">Read on every request, so a newly saved key, service or model takes effect immediately.</param>
+    public OpenAiClient(HttpClient http, Func<AiConnection> connection)
     {
         _http = http;
-        _model = model;
-        _apiKeyProvider = apiKeyProvider;
+        _connection = connection;
     }
 
     public async Task<AiResponse> CompleteAsync(AiRequest request, CancellationToken cancellationToken)
     {
-        string? apiKey = _apiKeyProvider();
-        if (string.IsNullOrWhiteSpace(apiKey))
+        AiConnection connection = _connection();
+        if (string.IsNullOrWhiteSpace(connection.ApiKey))
         {
-            throw new AiServiceException(AiFailure.MissingApiKey, "No OpenAI API key is set.");
+            throw new AiServiceException(AiFailure.MissingApiKey, $"No API key is set for {connection.Provider.DisplayName}.");
         }
 
-        using var message = new HttpRequestMessage(HttpMethod.Post, Endpoint)
+        using var message = new HttpRequestMessage(HttpMethod.Post, connection.Provider.Endpoint)
         {
-            Content = new StringContent(BuildBody(request).ToJsonString(), Encoding.UTF8, "application/json"),
+            Content = new StringContent(BuildBody(request, connection.Model).ToJsonString(), Encoding.UTF8, "application/json"),
         };
-        message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+        message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", connection.ApiKey);
 
         using HttpResponseMessage response = await _http.SendAsync(message, cancellationToken).ConfigureAwait(false);
         string body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
@@ -52,7 +48,7 @@ public sealed class OpenAiClient : IAiClient
         return ParseResponse(body);
     }
 
-    internal JsonObject BuildBody(AiRequest request)
+    internal static JsonObject BuildBody(AiRequest request, string model)
     {
         var messages = new JsonArray
         {
@@ -90,7 +86,7 @@ public sealed class OpenAiClient : IAiClient
             });
         }
 
-        var body = new JsonObject { ["model"] = _model, ["messages"] = messages };
+        var body = new JsonObject { ["model"] = model, ["messages"] = messages };
 
         if (request.Tools.Count > 0)
         {
@@ -135,7 +131,7 @@ public sealed class OpenAiClient : IAiClient
         }
         catch (Exception ex) when (ex is JsonException or KeyNotFoundException or InvalidOperationException or IndexOutOfRangeException)
         {
-            throw new AiServiceException(AiFailure.BadResponse, "OpenAI returned a response that could not be read.");
+            throw new AiServiceException(AiFailure.BadResponse, "The AI service returned a response that could not be read.");
         }
     }
 
@@ -147,12 +143,17 @@ public sealed class OpenAiClient : IAiClient
     private static AiServiceException MapError(HttpStatusCode status, string body)
     {
         string detail = ExtractErrorMessage(body) ?? $"HTTP {(int)status}";
-        return status switch
+
+        // Gemini answers an invalid key with 400 "API key not valid" rather than 401.
+        if (status is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden
+            || (status == HttpStatusCode.BadRequest && detail.Contains("API key", StringComparison.OrdinalIgnoreCase)))
         {
-            HttpStatusCode.Unauthorized => new AiServiceException(AiFailure.InvalidApiKey, detail),
-            HttpStatusCode.TooManyRequests => new AiServiceException(AiFailure.RateLimited, detail),
-            _ => new AiServiceException(AiFailure.ServiceError, $"HTTP {(int)status}: {detail}"),
-        };
+            return new AiServiceException(AiFailure.InvalidApiKey, detail);
+        }
+
+        return status == HttpStatusCode.TooManyRequests
+            ? new AiServiceException(AiFailure.RateLimited, detail)
+            : new AiServiceException(AiFailure.ServiceError, $"HTTP {(int)status}: {detail}");
     }
 
     private static string? ExtractErrorMessage(string body)
@@ -160,7 +161,13 @@ public sealed class OpenAiClient : IAiClient
         try
         {
             using JsonDocument document = JsonDocument.Parse(body);
-            return document.RootElement.TryGetProperty("error", out JsonElement error)
+
+            // OpenAI returns { "error": {...} }; Gemini's compatibility endpoint may return [ { "error": {...} } ].
+            JsonElement root = document.RootElement.ValueKind == JsonValueKind.Array && document.RootElement.GetArrayLength() > 0
+                ? document.RootElement[0]
+                : document.RootElement;
+            return root.ValueKind == JsonValueKind.Object
+                   && root.TryGetProperty("error", out JsonElement error)
                    && error.TryGetProperty("message", out JsonElement message)
                 ? message.GetString()
                 : null;

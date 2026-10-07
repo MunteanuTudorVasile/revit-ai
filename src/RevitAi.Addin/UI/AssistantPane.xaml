@@ -53,6 +53,13 @@
                 <TextBlock FontWeight="SemiBold" Text="{Binding T[KeyTitle]}" />
                 <TextBlock TextWrapping="Wrap" Margin="0,4,0,6" Foreground="#4B5563"
                            Text="{Binding T[KeyHelp]}" />
+                <ComboBox ItemsSource="{Binding Providers}" SelectedItem="{Binding SelectedProvider}"
+                          DisplayMemberPath="DisplayName" Margin="0,0,0,6" />
+                <DockPanel Margin="0,0,0,2">
+                    <TextBlock DockPanel.Dock="Left" Text="{Binding T[ModelLabel]}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                    <TextBox Text="{Binding ModelName}" MinHeight="22" VerticalContentAlignment="Center" />
+                </DockPanel>
+                <TextBlock TextWrapping="Wrap" Margin="0,0,0,6" FontSize="11" Foreground="#6B7280" Text="{Binding ModelHint}" />
                 <DockPanel>
                     <Button DockPanel.Dock="Right" Content="{Binding T[Remove]}" Padding="8,2" Margin="4,0,0,0" Command="{Binding RemoveKeyCommand}" />
                     <Button DockPanel.Dock="Right" Content="{Binding T[Save]}" Padding="8,2" Margin="4,0,0,0" Click="SaveKey_Click" />

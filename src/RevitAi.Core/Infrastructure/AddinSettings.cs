@@ -8,8 +8,11 @@ public sealed record AddinSettings
 {
     public int DispatcherTimeoutSeconds { get; init; } = 30;
 
-    /// <summary>OpenAI model name. Check the current model list on the OpenAI platform.</summary>
-    public string OpenAiModel { get; init; } = "gpt-5";
+    /// <summary>AI service: "openai" or "gemini" (ADR-046). Set from the panel.</summary>
+    public string AiProvider { get; init; } = Ai.AiProviders.OpenAi.Id;
+
+    /// <summary>Model override; null uses the service's default model. Set from the panel.</summary>
+    public string? AiModel { get; init; }
 
     public int AiRequestTimeoutSeconds { get; init; } = 120;
 
@@ -97,10 +100,15 @@ public sealed record AddinSettings
             result = result with { MaxAiSteps = defaults.MaxAiSteps };
         }
 
-        if (string.IsNullOrWhiteSpace(OpenAiModel))
+        if (!Ai.AiProviders.IsKnown(AiProvider))
         {
-            problems.Add($"OpenAiModel is empty; using {defaults.OpenAiModel}.");
-            result = result with { OpenAiModel = defaults.OpenAiModel };
+            problems.Add($"AiProvider must be one of {string.Join(", ", Ai.AiProviders.All.Select(p => p.Id))}; using {defaults.AiProvider}.");
+            result = result with { AiProvider = defaults.AiProvider };
+        }
+
+        if (AiModel is not null && string.IsNullOrWhiteSpace(AiModel))
+        {
+            result = result with { AiModel = null };
         }
 
         if (!Localization.UiText.IsSupported(Language))
