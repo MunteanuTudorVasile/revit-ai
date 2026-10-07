@@ -102,11 +102,7 @@ public sealed class FindElementsTool(RevitDispatcher dispatcher) : RevitReadTool
     protected override object Execute(UIApplication app, JsonElement arguments)
     {
         Document document = RevitRead.RequireDocument(app);
-        string categoryName = arguments.GetProperty("category").GetString()!;
-        Category category = document.Settings.Categories
-            .Cast<Category>()
-            .FirstOrDefault(c => string.Equals(c.Name, categoryName, StringComparison.OrdinalIgnoreCase))
-            ?? throw new ToolException($"No category named '{categoryName}'. Use the category name as shown in Revit, e.g. Walls, Doors, Rooms.");
+        Category category = RevitRead.RequireCategory(document, arguments.GetProperty("category").GetString()!);
 
         long? levelId = RevitRead.OptionalLong(arguments, "levelId");
         string? nameContains = RevitRead.OptionalString(arguments, "nameContains");

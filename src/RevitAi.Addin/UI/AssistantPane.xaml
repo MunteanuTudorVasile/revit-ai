@@ -23,10 +23,12 @@
         <Border Grid.Row="0" Padding="8" Margin="0,0,0,8" Background="#F3F4F6" CornerRadius="4">
             <DockPanel>
                 <StackPanel DockPanel.Dock="Right" VerticalAlignment="Top">
-                    <Button Content="Refresh" Padding="8,2" Command="{Binding RefreshCommand}"
-                            ToolTip="Read the current context from Revit" />
-                    <Button Content="API key" Padding="8,2" Margin="0,4,0,0" Command="{Binding ToggleKeyPanelCommand}"
-                            ToolTip="Add, change or remove your OpenAI API key" />
+                    <Button Content="{Binding T[Refresh]}" Padding="8,2" Command="{Binding RefreshCommand}"
+                            ToolTip="{Binding T[RefreshTip]}" />
+                    <Button Content="{Binding T[ApiKey]}" Padding="8,2" Margin="0,4,0,0" Command="{Binding ToggleKeyPanelCommand}"
+                            ToolTip="{Binding T[ApiKeyTip]}" />
+                    <Button Content="{Binding T[LanguageToggle]}" Padding="8,2" Margin="0,4,0,0" Command="{Binding ToggleLanguageCommand}"
+                            ToolTip="{Binding T[LanguageToggleTip]}" />
                 </StackPanel>
                 <TextBlock Text="{Binding ContextText}" TextWrapping="Wrap" />
             </DockPanel>
@@ -36,10 +38,10 @@
         <Border Grid.Row="1" Padding="8" Margin="0,0,0,8" Background="#FFF7E6" BorderBrush="#F5C26B" BorderThickness="1" CornerRadius="4"
                 Visibility="{Binding NeedsConsent, Converter={StaticResource Visible}}">
             <StackPanel>
-                <TextBlock FontWeight="SemiBold" Text="Before you start" />
+                <TextBlock FontWeight="SemiBold" Text="{Binding T[ConsentTitle]}" />
                 <TextBlock TextWrapping="Wrap" Margin="0,4,0,0"
-                           Text="To answer questions, Revit AI sends what you type and parts of your model to OpenAI: element names, categories, types, parameter values, levels and views. OpenAI's API data policies apply. Nothing is sent until you accept." />
-                <Button Content="I understand, continue" HorizontalAlignment="Left" Padding="10,3" Margin="0,8,0,0"
+                           Text="{Binding T[ConsentBody]}" />
+                <Button Content="{Binding T[ConsentAccept]}" HorizontalAlignment="Left" Padding="10,3" Margin="0,8,0,0"
                         Command="{Binding AcceptConsentCommand}" />
             </StackPanel>
         </Border>
@@ -48,12 +50,12 @@
         <Border Grid.Row="2" Padding="8" Margin="0,0,0,8" Background="#F3F4F6" CornerRadius="4"
                 Visibility="{Binding ShowKeyPanel, Converter={StaticResource Visible}}">
             <StackPanel>
-                <TextBlock FontWeight="SemiBold" Text="OpenAI API key" />
+                <TextBlock FontWeight="SemiBold" Text="{Binding T[KeyTitle]}" />
                 <TextBlock TextWrapping="Wrap" Margin="0,4,0,6" Foreground="#4B5563"
-                           Text="Create one at platform.openai.com. It is stored encrypted for your Windows account and only sent to OpenAI." />
+                           Text="{Binding T[KeyHelp]}" />
                 <DockPanel>
-                    <Button DockPanel.Dock="Right" Content="Remove" Padding="8,2" Margin="4,0,0,0" Command="{Binding RemoveKeyCommand}" />
-                    <Button DockPanel.Dock="Right" Content="Save" Padding="8,2" Margin="4,0,0,0" Click="SaveKey_Click" />
+                    <Button DockPanel.Dock="Right" Content="{Binding T[Remove]}" Padding="8,2" Margin="4,0,0,0" Command="{Binding RemoveKeyCommand}" />
+                    <Button DockPanel.Dock="Right" Content="{Binding T[Save]}" Padding="8,2" Margin="4,0,0,0" Click="SaveKey_Click" />
                     <PasswordBox x:Name="KeyBox" MinHeight="24" VerticalContentAlignment="Center" />
                 </DockPanel>
             </StackPanel>
@@ -90,11 +92,11 @@
                          BorderThickness="0" Background="Transparent" Padding="0"
                          Visibility="{Binding HasPreviewText, Converter={StaticResource Visible}}" />
                 <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                    <Button Content="Preview" Padding="10,3" Command="{Binding PreviewCommand}"
-                            ToolTip="Run the plan in Revit and roll it back, to see the real result and warnings" />
-                    <Button Content="Apply" Padding="10,3" Margin="6,0,0,0" FontWeight="SemiBold" Command="{Binding ApplyCommand}"
-                            ToolTip="Make these changes. They become one undo step (Ctrl+Z)." />
-                    <Button Content="Discard" Padding="10,3" Margin="6,0,0,0" Command="{Binding DiscardCommand}" />
+                    <Button Content="{Binding T[Preview]}" Padding="10,3" Command="{Binding PreviewCommand}"
+                            ToolTip="{Binding T[PreviewTip]}" />
+                    <Button Content="{Binding T[Apply]}" Padding="10,3" Margin="6,0,0,0" FontWeight="SemiBold" Command="{Binding ApplyCommand}"
+                            ToolTip="{Binding T[ApplyTip]}" />
+                    <Button Content="{Binding T[Discard]}" Padding="10,3" Margin="6,0,0,0" Command="{Binding DiscardCommand}" />
                 </StackPanel>
             </StackPanel>
         </Border>
@@ -105,10 +107,10 @@
 
         <!-- Input -->
         <DockPanel Grid.Row="6" Margin="0,8,0,0">
-            <Button DockPanel.Dock="Right" Content="Cancel" Padding="10,4" Margin="6,0,0,0"
+            <Button DockPanel.Dock="Right" Content="{Binding T[Cancel]}" Padding="10,4" Margin="6,0,0,0"
                     Command="{Binding CancelCommand}"
                     Visibility="{Binding IsBusy, Converter={StaticResource Visible}}" />
-            <Button DockPanel.Dock="Right" Content="Send" Padding="12,4" Margin="6,0,0,0"
+            <Button DockPanel.Dock="Right" Content="{Binding T[Send]}" Padding="12,4" Margin="6,0,0,0"
                     Command="{Binding SendCommand}" />
             <TextBox Text="{Binding Input, UpdateSourceTrigger=PropertyChanged}" MinHeight="28"
                      VerticalContentAlignment="Center">
@@ -120,6 +122,6 @@
 
         <!-- UX: the user must always know whether the model can change -->
         <TextBlock Grid.Row="7" Margin="0,6,0,0" FontSize="11" Foreground="#6B7280" TextWrapping="Wrap"
-                   Text="Nothing in your model changes until you click Apply. Each applied plan is one undo step (Ctrl+Z)." />
+                   Text="{Binding T[Footer]}" />
     </Grid>
 </Page>

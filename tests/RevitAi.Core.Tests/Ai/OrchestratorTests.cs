@@ -1,6 +1,7 @@
 using RevitAi.Core.Ai;
 using RevitAi.Core.Context;
 using RevitAi.Core.Infrastructure;
+using RevitAi.Core.Localization;
 using RevitAi.Core.Planning;
 using RevitAi.Core.Tools;
 using static RevitAi.Core.Tests.ScriptedAiClient;
@@ -28,7 +29,7 @@ public sealed class OrchestratorTests : IDisposable
         new(ai, _registry, new FileLog(_logDir), maxSteps, maxResultChars);
 
     private Task<AssistantReply> Run(Orchestrator orchestrator, string text = "What did I select?", CancellationToken ct = default) =>
-        orchestrator.RunAsync(_conversation, text, Context, [], new SyncProgress(_progress), ct);
+        orchestrator.RunAsync(_conversation, text, Context, [], new UiText(UiText.English), new SyncProgress(_progress), ct);
 
     private static string OutputOf(AiRequest request, string callId) =>
         request.Items.OfType<ToolOutput>().Single(o => o.CallId == callId).Content;
@@ -281,9 +282,25 @@ public sealed class OrchestratorTests : IDisposable
             Guid.NewGuid(), DateTimeOffset.Now, "House.rvt", "make wall longer", plan.Operations,
             new PlanRunResult(true, true, [new StepResult(1, "modify_wall", true, "Wall 18342: 4200 mm → 4700 mm", [])], [18342], "Revit AI"));
 
-        await Create(ai).RunAsync(_conversation, "and the other one?", Context, [record], null, CancellationToken.None);
+        await Create(ai).RunAsync(_conversation, "and the other one?", Context, [record], new UiText(UiText.English), null, CancellationToken.None);
 
         Assert.Contains("Wall 18342: 4200 mm → 4700 mm", ai.Requests[0].Instructions);
+    }
+
+    [Fact]
+    public async Task Romanian_interface_localizes_own_messages_and_progress()
+    {
+        _registry.Register(new FakeTool(name: "get_selected_elements"));
+        ToolCall call = new("c", "get_selected_elements", """{ "id": 1 }""");
+        var ai = new ScriptedAiClient(Calls(call), Calls(call));
+
+        AssistantReply reply = await Create(ai, maxSteps: 2).RunAsync(
+            _conversation, "Ce am selectat?", Context, [], new UiText(UiText.Romanian), new SyncProgress(_progress), CancellationToken.None);
+
+        Assert.StartsWith("M-am oprit după 2 pași", reply.Text);
+        Assert.Contains("Mă gândesc…", _progress);
+        Assert.Contains("Citesc selecția…", _progress);
+        Assert.Contains("interface language: Romanian", ai.Requests[0].Instructions);
     }
 
     private sealed class FailingAiClient : IAiClient

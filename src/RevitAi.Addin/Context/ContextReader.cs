@@ -1,5 +1,6 @@
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
+using RevitAi.Addin.Tools;
 using RevitAi.Core.Context;
 
 namespace RevitAi.Addin.Context;
@@ -20,11 +21,18 @@ public static class ContextReader
         }
 
         View? view = document.ActiveView;
+        ICollection<ElementId> selected = uiDocument.Selection.GetElementIds();
         return new ModelContext(
             DocumentTitle: document.Title,
             ViewName: view?.Name,
             ViewType: view?.ViewType.ToString(),
             LevelName: view?.GenLevel?.Name,
-            SelectionCount: uiDocument.Selection.GetElementIds().Count);
+            SelectionCount: selected.Count,
+            SelectionPreview: selected
+                .Take(ModelContext.MaxSelectionPreview)
+                .Select(document.GetElement)
+                .Where(element => element is not null)
+                .Select(RevitRead.Summarize)
+                .ToList());
     }
 }

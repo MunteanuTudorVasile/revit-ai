@@ -12,6 +12,7 @@ using RevitAi.Addin.Tools;
 using RevitAi.Core.Ai;
 using RevitAi.Core.Context;
 using RevitAi.Core.Infrastructure;
+using RevitAi.Core.Localization;
 using RevitAi.Core.Planning;
 
 namespace RevitAi.Addin.UI;
@@ -20,6 +21,7 @@ public sealed record ChatMessage(string Author, string Text);
 
 /// <summary>
 /// Panel state. The AI answers questions and proposes plans; the model only changes when the user clicks Apply (ADR-024).
+/// All panel texts come from <see cref="UiText"/> (English or Romanian).
 /// </summary>
 public sealed class AssistantViewModel : INotifyPropertyChanged
 {
@@ -36,6 +38,7 @@ public sealed class AssistantViewModel : INotifyPropertyChanged
     private readonly Conversation _conversation = new();
 
     private AddinSettings _settings;
+    private UiText _text;
     private ModelContext _context = ModelContext.NoDocument;
     private string _input = string.Empty;
     private string _status = string.Empty;
@@ -64,25 +67,27 @@ public sealed class AssistantViewModel : INotifyPropertyChanged
         _settings = settings;
         _settingsPath = settingsPath;
         _log = log;
+        _text = new UiText(settings.Language);
         _showKeyPanel = !keyStore.HasKey;
 
         SendCommand = new AsyncCommand(SendAsync, () => !IsBusy);
         RefreshCommand = new AsyncCommand(async () => await ReadContextAsync());
         PreviewCommand = new AsyncCommand(PreviewAsync, () => _plan is not null && !IsBusy);
         ApplyCommand = new AsyncCommand(ApplyAsync, () => CanApply);
-        DiscardCommand = new RelayCommand(() => DiscardPlan("Discarded the proposal. Nothing was changed."), () => _plan is not null && !IsBusy);
+        DiscardCommand = new RelayCommand(() => DiscardPlan(T["Discarded"]), () => _plan is not null && !IsBusy);
         CancelCommand = new RelayCommand(() => _cancellation?.Cancel(), () => IsBusy);
         AcceptConsentCommand = new RelayCommand(AcceptConsent);
         ToggleKeyPanelCommand = new RelayCommand(() => ShowKeyPanel = !ShowKeyPanel);
         RemoveKeyCommand = new RelayCommand(RemoveApiKey, () => HasApiKey);
+        ToggleLanguageCommand = new RelayCommand(ToggleLanguage);
 
-        Messages.Add(new ChatMessage(AssistantName,
-            "Ask me about your model or what to change, for example: \"What did I select?\", " +
-            "\"How many doors are on this level?\", \"Make this wall 50 cm longer.\" " +
-            "I only propose changes; nothing changes until you click Apply."));
+        Say(T["Welcome"]);
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
+
+    /// <summary>Panel texts; XAML binds to <c>T[Key]</c>.</summary>
+    public UiText T => _text;
 
     public ObservableCollection<ChatMessage> Messages { get; } = [];
 
@@ -98,6 +103,8 @@ public sealed class AssistantViewModel : INotifyPropertyChanged
 
     public RelayCommand RemoveKeyCommand { get; }
 
+    public RelayCommand ToggleLanguageCommand { get; }
+
     public AsyncCommand PreviewCommand { get; }
 
     public AsyncCommand ApplyCommand { get; }
@@ -110,8 +117,7 @@ public sealed class AssistantViewModel : INotifyPropertyChanged
 
     public string PlanHeader => _plan is null
         ? string.Empty
-        : $"Proposed changes · not applied yet · {_plan.Operations.Count} operation(s)"
-          + (_plan.RequiresPreview ? " · preview required before Apply" : "");
+        : T.Format("PlanHeader", _plan.Operations.Count) + (_plan.RequiresPreview ? T["PlanPreviewRequired"] : "");
 
     public string PreviewText
     {
@@ -167,13 +173,13 @@ public sealed class AssistantViewModel : INotifyPropertyChanged
     {
         if (context.DocumentTitle != _context.DocumentTitle && _plan is not null && !IsBusy)
         {
-            DiscardPlan("The active project changed, so I discarded the proposal. Nothing was changed.");
+            DiscardPlan(T["ProjectChangedPlan"]);
         }
 
         if (context.DocumentTitle != _context.DocumentTitle && _conversation.TurnCount > 0)
         {
             _conversation.Clear();
-            Messages.Add(new ChatMessage(AssistantName, "The active project changed, so I started a new conversation."));
+            Say(T["ProjectChangedConversation"]);
         }
 
         _context = context;
@@ -185,7 +191,7 @@ public sealed class AssistantViewModel : INotifyPropertyChanged
     {
         if (string.IsNullOrWhiteSpace(apiKey))
         {
-            Messages.Add(new ChatMessage(AssistantName, "Paste your OpenAI API key first."));
+            Say(T["PasteKeyFirst"]);
             return;
         }
 
@@ -195,13 +201,13 @@ public sealed class AssistantViewModel : INotifyPropertyChanged
             ShowKeyPanel = false;
             OnPropertyChanged(nameof(HasApiKey));
             RemoveKeyCommand.RaiseCanExecuteChanged();
-            Messages.Add(new ChatMessage(AssistantName, "API key saved, encrypted for your Windows account."));
+            Say(T["KeySaved"]);
             _log.Info("OpenAI API key saved.");
         }
         catch (Exception ex)
         {
             _log.Error("Saving the API key failed.", ex);
-            Messages.Add(new ChatMessage(AssistantName, $"I couldn't save the API key: {ex.Message}"));
+            Say(T.Format("KeySaveFailed", ex.Message));
         }
     }
 
@@ -213,32 +219,49 @@ public sealed class AssistantViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(HasApiKey));
             RemoveKeyCommand.RaiseCanExecuteChanged();
             ShowKeyPanel = true;
-            Messages.Add(new ChatMessage(AssistantName, "API key removed."));
+            Say(T["KeyRemoved"]);
             _log.Info("OpenAI API key removed.");
         }
         catch (Exception ex)
         {
             _log.Error("Removing the API key failed.", ex);
-            Messages.Add(new ChatMessage(AssistantName, $"I couldn't remove the API key: {ex.Message}"));
+            Say(T.Format("KeyRemoveFailed", ex.Message));
         }
     }
 
     private void AcceptConsent()
     {
-        AddinSettings accepted = _settings with { ConsentAcceptedAt = DateTimeOffset.Now };
+        SaveSettings(_settings with { ConsentAcceptedAt = DateTimeOffset.Now });
+        OnPropertyChanged(nameof(NeedsConsent));
+        _log.Info("Data notice accepted.");
+    }
+
+    private void ToggleLanguage()
+    {
+        string language = _text.Language == UiText.English ? UiText.Romanian : UiText.English;
+        SaveSettings(_settings with { Language = language });
+        _text = new UiText(language);
+
+        // Every binding to T[...] and every computed text refreshes; earlier chat messages stay as they were.
+        OnPropertyChanged(nameof(T));
+        OnPropertyChanged(nameof(ContextText));
+        OnPropertyChanged(nameof(PlanHeader));
+        _log.Info($"Panel language set to {language}.");
+    }
+
+    /// <summary>Saves settings; on failure the change still applies for this session.</summary>
+    private void SaveSettings(AddinSettings settings)
+    {
         try
         {
-            accepted.Save(_settingsPath);
+            settings.Save(_settingsPath);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            // Still honour the acceptance for this session; it will be asked again next time.
-            _log.Error("Saving consent failed.", ex);
+            _log.Error("Saving settings failed.", ex);
         }
 
-        _settings = accepted;
-        OnPropertyChanged(nameof(NeedsConsent));
-        _log.Info("Data notice accepted.");
+        _settings = settings;
     }
 
     private async Task SendAsync()
@@ -251,24 +274,24 @@ public sealed class AssistantViewModel : INotifyPropertyChanged
 
         if (NeedsConsent)
         {
-            Messages.Add(new ChatMessage(AssistantName, "Please read and accept the data notice above first."));
+            Say(T["AcceptNoticeFirst"]);
             return;
         }
 
         if (!HasApiKey)
         {
             ShowKeyPanel = true;
-            Messages.Add(new ChatMessage(AssistantName, "Add your OpenAI API key first, in the API key panel above."));
+            Say(T["AddKeyFirst"]);
             return;
         }
 
         Input = string.Empty;
         if (_plan is not null)
         {
-            DiscardPlan("I discarded the previous proposal; it was never applied.");
+            DiscardPlan(T["PreviousPlanDiscarded"]);
         }
 
-        Messages.Add(new ChatMessage("You", text));
+        Messages.Add(new ChatMessage(T["You"], text));
 
         ModelContext? context = await ReadContextAsync();
         if (context is null)
@@ -283,8 +306,8 @@ public sealed class AssistantViewModel : INotifyPropertyChanged
         try
         {
             IReadOnlyList<ActionRecord> recent = _history.RecentApplied(context.DocumentTitle, RecentActionsForContext);
-            AssistantReply reply = await _orchestrator.RunAsync(_conversation, text, context, recent, progress, cancellation.Token);
-            Messages.Add(new ChatMessage(AssistantName, reply.Text));
+            AssistantReply reply = await _orchestrator.RunAsync(_conversation, text, context, recent, T, progress, cancellation.Token);
+            Say(reply.Text);
             if (reply.Plan is not null)
             {
                 ShowPlan(reply.Plan);
@@ -294,17 +317,16 @@ public sealed class AssistantViewModel : INotifyPropertyChanged
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
         {
-            Messages.Add(new ChatMessage(AssistantName, "Cancelled."));
+            Say(T["Cancelled"]);
         }
         catch (TaskCanceledException)
         {
-            Messages.Add(new ChatMessage(AssistantName,
-                $"OpenAI didn't answer within {_settings.AiRequestTimeoutSeconds} seconds. Please try again."));
+            Say(T.Format("OpenAiTimeout", _settings.AiRequestTimeoutSeconds));
         }
         catch (AiServiceException ex)
         {
             _log.Warning($"OpenAI request failed ({ex.Failure}): {ex.Message}");
-            Messages.Add(new ChatMessage(AssistantName, Describe(ex)));
+            Say(Describe(ex));
             if (ex.Failure is AiFailure.MissingApiKey or AiFailure.InvalidApiKey)
             {
                 ShowKeyPanel = true;
@@ -313,12 +335,12 @@ public sealed class AssistantViewModel : INotifyPropertyChanged
         catch (HttpRequestException ex)
         {
             _log.Warning($"Could not reach OpenAI: {ex.Message}");
-            Messages.Add(new ChatMessage(AssistantName, "I couldn't reach OpenAI. Check your internet connection and try again."));
+            Say(T["CouldNotReachOpenAi"]);
         }
         catch (Exception ex)
         {
             _log.Error("Answering failed.", ex);
-            Messages.Add(new ChatMessage(AssistantName, $"Something went wrong: {ex.Message}"));
+            Say(T.Format("SomethingWrong", ex.Message));
         }
         finally
         {
@@ -349,7 +371,7 @@ public sealed class AssistantViewModel : INotifyPropertyChanged
         PreviewText = string.Empty;
         PlanItems.Clear();
         OnPlanChanged();
-        Messages.Add(new ChatMessage(AssistantName, message));
+        Say(message);
     }
 
     private async Task PreviewAsync()
@@ -360,7 +382,7 @@ public sealed class AssistantViewModel : INotifyPropertyChanged
         }
 
         IsBusy = true;
-        Status = "Previewing in Revit. Nothing will be kept…";
+        Status = T["StatusPreviewing"];
         try
         {
             PlanRunResult result = await _dispatcher.InvokeAsync(
@@ -374,7 +396,7 @@ public sealed class AssistantViewModel : INotifyPropertyChanged
         }
         catch (Exception ex)
         {
-            ReportRunFailure("Preview", ex);
+            ReportRunFailure(apply: false, ex);
         }
         finally
         {
@@ -391,7 +413,7 @@ public sealed class AssistantViewModel : INotifyPropertyChanged
         }
 
         IsBusy = true;
-        Status = "Applying changes in Revit…";
+        Status = T["StatusApplying"];
         try
         {
             (string documentTitle, PlanRunResult result) = await _dispatcher.InvokeAsync(app =>
@@ -408,11 +430,11 @@ public sealed class AssistantViewModel : INotifyPropertyChanged
             PlanItems.Clear();
             PreviewText = string.Empty;
             OnPlanChanged();
-            Messages.Add(new ChatMessage(AssistantName, DescribeApply(result)));
+            Say(DescribeApply(result));
         }
         catch (Exception ex)
         {
-            ReportRunFailure("Apply", ex);
+            ReportRunFailure(apply: true, ex);
         }
         finally
         {
@@ -425,68 +447,68 @@ public sealed class AssistantViewModel : INotifyPropertyChanged
     /// The dispatcher guarantees a request either never ran or ran to completion, and the executor rolls back on any
     /// failure, so an exception here means the model was not changed.
     /// </summary>
-    private void ReportRunFailure(string action, Exception ex)
+    private void ReportRunFailure(bool apply, Exception ex)
     {
+        string action = apply ? "Apply" : "Preview";
         if (ex is TimeoutException)
         {
             _log.Warning($"{action} timed out waiting for Revit.");
-            Messages.Add(new ChatMessage(AssistantName,
-                $"Revit didn't start the {action.ToLowerInvariant()} in time (busy or showing a dialog). Nothing was changed. Try again."));
+            Say(T[apply ? "ApplyTimeout" : "PreviewTimeout"]);
             return;
         }
 
         _log.Error($"{action} failed.", ex);
-        Messages.Add(new ChatMessage(AssistantName, $"{action} failed: {ex.Message}. Nothing was changed."));
+        Say(T.Format(apply ? "ApplyError" : "PreviewError", ex.Message));
     }
 
-    private static string DescribePreview(PlanRunResult result)
+    private string DescribePreview(PlanRunResult result)
     {
         var text = new StringBuilder();
         if (result.Succeeded)
         {
-            text.AppendLine("Preview succeeded. It was rolled back, so nothing was kept:");
+            text.AppendLine(T["PreviewSucceeded"]);
             AppendSteps(text, result.Steps);
         }
         else
         {
             StepResult failed = result.FailedStep!;
-            text.AppendLine($"Preview failed at step {failed.Number}: {failed.Outcome}");
-            text.AppendLine("Nothing was changed. Ask me to adjust the plan.");
+            text.AppendLine(T.Format("PreviewFailedAtStep", failed.Number, failed.Outcome));
+            text.AppendLine(T["PreviewAdjust"]);
         }
 
         return text.ToString().TrimEnd();
     }
 
-    private static string DescribeApply(PlanRunResult result)
+    private string DescribeApply(PlanRunResult result)
     {
         var text = new StringBuilder();
         if (result.Applied)
         {
-            text.AppendLine($"Applied {result.Steps.Count} change(s):");
+            text.AppendLine(T.Format("Applied", result.Steps.Count));
             AppendSteps(text, result.Steps);
-            text.AppendLine($"Undo all of it with Ctrl+Z (\"{result.UndoName}\").");
+            text.AppendLine(T.Format("UndoHint", result.UndoName ?? ""));
         }
         else
         {
             StepResult failed = result.FailedStep!;
-            text.AppendLine($"Nothing was changed. Step {failed.Number} ({failed.ToolName}) failed: {failed.Outcome}");
+            text.AppendLine(T.Format("ApplyFailedAtStep", failed.Number, failed.ToolName, failed.Outcome));
             if (failed.Number > 1)
             {
-                text.AppendLine($"Steps 1–{failed.Number - 1} were rolled back too.");
+                text.AppendLine(T.Format("StepsRolledBack", failed.Number - 1));
             }
         }
 
         return text.ToString().TrimEnd();
     }
 
-    private static void AppendSteps(StringBuilder text, IReadOnlyList<StepResult> steps)
+    private void AppendSteps(StringBuilder text, IReadOnlyList<StepResult> steps)
     {
         foreach (StepResult step in steps)
         {
             text.AppendLine($"• {step.Outcome}");
             foreach (string warning in step.Warnings)
             {
-                text.AppendLine($"   ⚠ Revit warning: {warning}");
+                text.AppendLine("   ⚠ " + T.Format("RevitWarning", warning));
             }
         }
     }
@@ -518,40 +540,40 @@ public sealed class AssistantViewModel : INotifyPropertyChanged
         catch (TimeoutException ex)
         {
             _log.Warning($"Context read timed out: {ex.Message}");
-            Messages.Add(new ChatMessage(AssistantName,
-                "Revit didn't respond in time. It may be busy or showing a dialog; close it and try again."));
+            Say(T["RevitTimeout"]);
         }
         catch (Exception ex)
         {
             _log.Error("Context read failed.", ex);
-            Messages.Add(new ChatMessage(AssistantName, $"I couldn't read the model: {ex.Message}"));
+            Say(T.Format("ReadModelFailed", ex.Message));
         }
 
         return null;
     }
 
-    private static string Describe(AiServiceException ex) => ex.Failure switch
+    private string Describe(AiServiceException ex) => ex.Failure switch
     {
-        AiFailure.MissingApiKey => "Add your OpenAI API key first, in the API key panel above.",
-        AiFailure.InvalidApiKey => "OpenAI rejected the API key. Check it in the API key panel above.",
-        AiFailure.RateLimited => $"OpenAI's rate limit or quota was reached ({ex.Message}). Wait a moment, or check your OpenAI billing.",
-        AiFailure.BadResponse => "OpenAI returned an answer I couldn't read. Please try again.",
-        _ => $"The OpenAI request failed: {ex.Message}",
+        AiFailure.MissingApiKey => T["AddKeyFirst"],
+        AiFailure.InvalidApiKey => T["AiInvalidKey"],
+        AiFailure.RateLimited => T.Format("AiRateLimited", ex.Message),
+        AiFailure.BadResponse => T["AiBadResponse"],
+        _ => T.Format("AiFailed", ex.Message),
     };
 
-    private static string FormatContext(ModelContext context)
+    private string FormatContext(ModelContext context)
     {
         if (!context.HasDocument)
         {
-            return "No project open";
+            return T["NoProject"];
         }
 
         string level = context.LevelName is null ? "" : $" · {context.LevelName}";
-        string selection = context.SelectionCount == 1 ? "1 selected element" : $"{context.SelectionCount} selected elements";
-        return $"{context.DocumentTitle}\n{context.ViewName} ({context.ViewType}){level}\n{selection}";
+        return $"{context.DocumentTitle}\n{context.ViewName} ({context.ViewType}){level}\n{T.SelectedElements(context.SelectionCount)}";
     }
 
-    private void Set<T>(ref T field, T value, [CallerMemberName] string? name = null)
+    private void Say(string text) => Messages.Add(new ChatMessage(AssistantName, text));
+
+    private void Set<TValue>(ref TValue field, TValue value, [CallerMemberName] string? name = null)
     {
         field = value;
         OnPropertyChanged(name);

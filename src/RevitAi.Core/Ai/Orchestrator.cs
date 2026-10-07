@@ -2,6 +2,7 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using RevitAi.Core.Context;
 using RevitAi.Core.Infrastructure;
+using RevitAi.Core.Localization;
 using RevitAi.Core.Planning;
 using RevitAi.Core.Tools;
 
@@ -23,8 +24,6 @@ public sealed record AssistantReply(
 /// </summary>
 public sealed class Orchestrator
 {
-    public const string ThinkingLabel = "Thinking…";
-
     // Tool output goes to the AI, not into HTML: keep names like "Instalații" readable instead of \u escapes.
     private static readonly JsonSerializerOptions ResultJson = new(JsonSerializerDefaults.Web)
     {
@@ -56,24 +55,25 @@ public sealed class Orchestrator
         string userText,
         ModelContext context,
         IReadOnlyList<ActionRecord> recentActions,
+        UiText ui,
         IProgress<string>? progress,
         CancellationToken cancellationToken)
     {
         var turn = new List<AiItem> { new UserMessage(userText) };
         var records = new List<ToolCallRecord>();
         var plan = new PendingPlan(userText);
-        string instructions = AssistantInstructions.Build(context, recentActions);
+        string instructions = AssistantInstructions.Build(context, recentActions, ui.LanguageName);
 
         for (int step = 0; step < _maxSteps; step++)
         {
-            progress?.Report(ThinkingLabel);
+            progress?.Report(ui["Thinking"]);
             AiResponse response = await _ai.CompleteAsync(
                 new AiRequest(instructions, [.. conversation.Items, .. turn], _registry.Tools),
                 cancellationToken).ConfigureAwait(false);
 
             if (response.ToolCalls.Count == 0)
             {
-                string text = string.IsNullOrWhiteSpace(response.Text) ? "I don't have an answer for that." : response.Text;
+                string text = string.IsNullOrWhiteSpace(response.Text) ? ui["NoAnswer"] : response.Text;
                 turn.Add(new AssistantMessage(text));
                 conversation.AddTurn(turn);
                 return new AssistantReply(text, records, StoppedAtStepLimit: false, PlanOrNull(plan));
@@ -82,7 +82,7 @@ public sealed class Orchestrator
             var outputs = new List<AiItem>();
             foreach (ToolCall call in response.ToolCalls)
             {
-                (string content, bool succeeded) = await RunToolAsync(call, plan, progress, cancellationToken).ConfigureAwait(false);
+                (string content, bool succeeded) = await RunToolAsync(call, plan, ui, progress, cancellationToken).ConfigureAwait(false);
                 outputs.Add(new ToolOutput(call.Id, content));
                 records.Add(new ToolCallRecord(call.Name, call.ArgumentsJson, succeeded));
             }
@@ -91,7 +91,7 @@ public sealed class Orchestrator
             turn.AddRange(outputs);
         }
 
-        string stopped = $"I stopped after {_maxSteps} steps without reaching an answer. Try asking something more specific.";
+        string stopped = ui.Format("StoppedAtLimit", _maxSteps);
         turn.Add(new AssistantMessage(stopped));
         conversation.AddTurn(turn);
         return new AssistantReply(stopped, records, StoppedAtStepLimit: true, PlanOrNull(plan));
@@ -102,6 +102,7 @@ public sealed class Orchestrator
     private async Task<(string Content, bool Succeeded)> RunToolAsync(
         ToolCall call,
         PendingPlan plan,
+        UiText ui,
         IProgress<string>? progress,
         CancellationToken cancellationToken)
     {
@@ -136,7 +137,7 @@ public sealed class Orchestrator
             }
         }
 
-        progress?.Report(tool.ProgressLabel);
+        progress?.Report(ui.ProgressFor(tool));
         try
         {
             return tool switch

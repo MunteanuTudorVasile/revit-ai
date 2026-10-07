@@ -92,4 +92,16 @@ public sealed class AddinSettingsTests : IDisposable
         Assert.Contains("MaxAiSteps", problem);
         Assert.Contains("AiRequestTimeoutSeconds", problem);
     }
+
+    [Fact]
+    public void Unsupported_language_falls_back_to_english()
+    {
+        Directory.CreateDirectory(_dir);
+        File.WriteAllText(SettingsPath, """{ "Language": "fr" }""");
+
+        AddinSettings settings = AddinSettings.Load(SettingsPath, out string? problem);
+
+        Assert.Equal("en", settings.Language);
+        Assert.Contains("Language", problem);
+    }
 }

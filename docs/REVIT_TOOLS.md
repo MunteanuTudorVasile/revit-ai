@@ -228,7 +228,7 @@ Input:
 
 `parameterNames: null` returns all instance parameters (max 80). Named parameters are looked up on the element, then on its type. Each value has `name`, `source` (`instance`/`type`), `storageType`, `displayValue`, `valueMm` (lengths), `valueM2` (areas), `isReadOnly`; unknown names are listed in `notFound`.
 
-Implementation status: the seven Phase 1 read tools (sections 2–8) are implemented in `src/RevitAi.Addin/Tools/`; their result contracts are in `src/RevitAi.Core/Tools/ReadModels.cs`. The six Phase 2 write tools (`create_wall`, `modify_wall`, `create_room`, `create_door`, `create_window`, `create_floor`) are in `src/RevitAi.Addin/Tools/WriteTools.cs`.
+Implementation status: the seven Phase 1 read tools (sections 2–8) are implemented in `src/RevitAi.Addin/Tools/`; their result contracts are in `src/RevitAi.Core/Tools/ReadModels.cs`. The six Phase 2 write tools (`create_wall`, `modify_wall`, `create_room`, `create_door`, `create_window`, `create_floor`) are in `src/RevitAi.Addin/Tools/WriteTools.cs`. Phase 3 adds `find_family_types`, `get_project_standard_types` (`TypeTools.cs`), `find_nearby_elements`, `get_element_room` and `get_room_boundary` (`SpatialTools.cs`).
 
 ---
 
@@ -279,15 +279,20 @@ Input:
 ```json
 {
   "category": "Doors",
-  "familyName": "Single-Flush"
+  "nameContains": "single",
+  "limit": null
 }
 ```
+
+Output per type: `typeId`, `family`, `type`, `isDefault`, `preferredRank` (from standards.json, 1 = most preferred), `instanceCount`.
+Sorted by standard rank, then default, then usage. Default limit 30, max 100.
 
 ---
 
 ## 13. get_project_standard_types
 
-Purpose: return preferred project types.
+Purpose: return the project's preferred types for a category, as configured by the user in
+`%APPDATA%\RevitAi\standards.json` (ADR-033).
 
 Input:
 
@@ -297,19 +302,8 @@ Input:
 }
 ```
 
-Output:
-
-```json
-{
-  "types": [
-    {
-      "id": 123,
-      "name": "Interior Standard 100mm",
-      "isPreferred": true
-    }
-  ]
-}
-```
+Output: `configured` (false when the file has nothing for the category), `preferred` (matching project types, in
+preference order), `notFoundInProject` (entries in the file that are not loaded in this project), `note`.
 
 ---
 
@@ -646,7 +640,22 @@ Input:
 
 ---
 
-## 32. Analysis Tools
+## 32. Spatial Tools (Phase 3)
+
+`find_nearby_elements` — `{ "elementId": 123, "radiusMm": null, "category": null, "limit": null }`: model elements whose
+bounding box is within `radiusMm` (default 1000, max 20 000) of the element's bounding box, sorted by centre distance.
+
+`get_element_room` — `{ "elementId": 123 }`: the room containing the element; doors and windows return `fromRoom` /
+`toRoom`. Walls usually lie between rooms and return no room.
+
+`get_room_boundary` — `{ "roomId": 789 }`: boundary loops (outer first) of segments with the bounding element
+(usually a wall), start, end and length in mm.
+
+All three are `READ_ONLY`.
+
+---
+
+## 33. Analysis Tools
 
 These tools are read-only and should be preferred for model checking.
 
@@ -660,7 +669,7 @@ Examples:
 
 ---
 
-## 33. Tool Design Rules
+## 34. Tool Design Rules
 
 Tools must:
 

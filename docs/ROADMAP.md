@@ -93,6 +93,8 @@ Success — user can say:
 
 ## Phase 3 — Context Intelligence
 
+Status: implemented; awaiting the Phase 3 smoke tests in `SMOKE_TESTS.md`. Not included: `find_families` (covered by `find_family_types`) and visible-element context.
+
 Goal: assistant understands more of the model.
 
 Implement:

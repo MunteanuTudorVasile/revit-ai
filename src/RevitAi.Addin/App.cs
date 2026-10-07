@@ -14,6 +14,7 @@ using RevitAi.Core.Ai;
 using RevitAi.Core.Context;
 using RevitAi.Core.Infrastructure;
 using RevitAi.Core.Planning;
+using RevitAi.Core.Standards;
 using RevitAi.Core.Tools;
 
 namespace RevitAi.Addin;
@@ -53,7 +54,14 @@ public sealed class App : IExternalApplication
             Http.Timeout = TimeSpan.FromSeconds(settings.AiRequestTimeoutSeconds);
             var keyStore = new ApiKeyStore(Path.Combine(AppDataDir, "openai.key"));
             var ai = new OpenAiClient(Http, settings.OpenAiModel, keyStore.TryLoad);
-            ToolRegistry registry = CreateToolRegistry(dispatcher);
+            string standardsPath = Path.Combine(AppDataDir, "standards.json");
+            ProjectStandards.Load(standardsPath, out string? standardsProblem); // creates the template on first start
+            if (standardsProblem is not null)
+            {
+                _log.Warning(standardsProblem);
+            }
+
+            ToolRegistry registry = CreateToolRegistry(dispatcher, standardsPath);
             var orchestrator = new Orchestrator(ai, registry, _log, settings.MaxAiSteps);
             var history = new ActionHistory(Path.Combine(LocalDataDir, "history.jsonl"), _log);
             _viewModel = new AssistantViewModel(
@@ -92,7 +100,7 @@ public sealed class App : IExternalApplication
         _viewModel?.UpdateContext(ContextReader.Read(e.GetDocument()));
     }
 
-    private static ToolRegistry CreateToolRegistry(RevitDispatcher dispatcher)
+    private static ToolRegistry CreateToolRegistry(RevitDispatcher dispatcher, string standardsPath)
     {
         var registry = new ToolRegistry();
         registry.Register(new GetProjectInfoTool(dispatcher));
@@ -102,6 +110,11 @@ public sealed class App : IExternalApplication
         registry.Register(new GetElementTool(dispatcher));
         registry.Register(new FindElementsTool(dispatcher));
         registry.Register(new GetElementParametersTool(dispatcher));
+        registry.Register(new FindFamilyTypesTool(dispatcher, standardsPath));
+        registry.Register(new GetProjectStandardTypesTool(dispatcher, standardsPath));
+        registry.Register(new FindNearbyElementsTool(dispatcher));
+        registry.Register(new GetElementRoomTool(dispatcher));
+        registry.Register(new GetRoomBoundaryTool(dispatcher));
 
         registry.Register(new CreateWallTool(dispatcher));
         registry.Register(new ModifyWallTool(dispatcher));

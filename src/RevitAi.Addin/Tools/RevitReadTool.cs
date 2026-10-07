@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Autodesk.Revit.DB;
+using Autodesk.Revit.DB.Architecture;
 using Autodesk.Revit.UI;
 using RevitAi.Addin.Dispatch;
 using RevitAi.Core.Tools;
@@ -64,6 +65,16 @@ internal static class RevitRead
         string? level = element.LevelId == ElementId.InvalidElementId ? null : document.GetElement(element.LevelId)?.Name;
         return new ElementSummary(element.Id.Value, element.Category?.Name, type?.FamilyName, type?.Name, type?.Id.Value, element.Name, level);
     }
+
+    /// <summary>A top-level category by its name as shown in Revit (case-insensitive).</summary>
+    public static Category RequireCategory(Document document, string name) =>
+        document.Settings.Categories
+            .Cast<Category>()
+            .FirstOrDefault(c => string.Equals(c.Name, name, StringComparison.OrdinalIgnoreCase))
+        ?? throw new ToolException($"No category named '{name}'. Use the category name as shown in Revit, e.g. Walls, Doors, Rooms.");
+
+    public static RoomInfo DescribeRoom(Room room) =>
+        new(room.Id.Value, NullIfEmpty(room.Number), NullIfEmpty(room.Name), room.Level?.Name, M2(room.Area));
 
     public static long? OptionalLong(JsonElement arguments, string name) =>
         arguments.TryGetProperty(name, out JsonElement value) && value.ValueKind == JsonValueKind.Number ? value.GetInt64() : null;

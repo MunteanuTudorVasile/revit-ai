@@ -15,6 +15,9 @@ public sealed record AddinSettings
     /// <summary>Maximum AI round trips per question before the assistant gives up.</summary>
     public int MaxAiSteps { get; init; } = 8;
 
+    /// <summary>Panel language: "en" or "ro".</summary>
+    public string Language { get; init; } = "en";
+
     /// <summary>When the user accepted the data notice (ADR-030); null until accepted.</summary>
     public DateTimeOffset? ConsentAcceptedAt { get; init; }
 
@@ -83,6 +86,12 @@ public sealed record AddinSettings
         {
             problems.Add($"OpenAiModel is empty; using {defaults.OpenAiModel}.");
             result = result with { OpenAiModel = defaults.OpenAiModel };
+        }
+
+        if (!Localization.UiText.IsSupported(Language))
+        {
+            problems.Add($"Language must be one of {string.Join(", ", Localization.UiText.SupportedLanguages)}; using {defaults.Language}.");
+            result = result with { Language = defaults.Language };
         }
 
         problem = problems.Count == 0 ? null : string.Join(" ", problems);

@@ -2,7 +2,7 @@
 
 AI assistant add-in for Autodesk Revit 2025 and 2026. Start with [CLAUDE.md](CLAUDE.md) and [docs/](docs/); decisions are in [docs/DECISIONS.md](docs/DECISIONS.md).
 
-Current phase: **Phase 2 — basic modeling**. Answers questions and proposes walls, rooms, doors, windows and floors; the model changes only when the user clicks Apply.
+Current phase: **Phase 3 — context intelligence**. Answers questions, proposes walls, rooms, doors, windows and floors using the project's standard types, and understands nearby elements and rooms. The model changes only when the user clicks Apply. Panel in English or Romanian.
 
 ## Layout
 
@@ -41,6 +41,7 @@ dotnet test tests/RevitAi.Core.Tests
 |---|---|
 | Settings | `%APPDATA%\RevitAi\settings.json` (created with defaults on first start) |
 | OpenAI API key | `%APPDATA%\RevitAi\openai.key` (DPAPI-encrypted for the Windows user; set from the panel) |
+| Project standards | `%APPDATA%\RevitAi\standards.json` (preferred types per category; see ADR-033) |
 | Logs | `%LOCALAPPDATA%\RevitAi\logs\revitai-YYYYMMDD.log` |
 | AI action history | `%LOCALAPPDATA%\RevitAi\history.jsonl` (one JSON line per Apply, successful or not) |
 
@@ -52,6 +53,7 @@ dotnet test tests/RevitAi.Core.Tests
 | `AiRequestTimeoutSeconds` | 120 | How long to wait for OpenAI. |
 | `MaxAiSteps` | 8 | AI round trips per question before giving up. |
 | `DispatcherTimeoutSeconds` | 30 | How long to wait for Revit to run a request. |
+| `Language` | `en` | Panel language: `en` or `ro`. Also switchable from the panel. |
 | `ConsentAcceptedAt` | null | Set when the user accepts the data notice. |
 
 Restart Revit after editing.

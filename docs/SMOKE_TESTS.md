@@ -69,6 +69,22 @@ Use a test project you can throw away. After each step, check Revit's undo list 
 | 2.16 | "Put a window 1 m from the start of this wall with a 900 mm sill." Apply. | Hosted window; sill height 900 mm in Properties. |
 | 2.17 | Open `%LOCALAPPDATA%\RevitAi\history.jsonl`. | One line per Apply with request, operations, steps, affected IDs and undo name. |
 
+## Phase 3 — context intelligence and Romanian
+
+| # | Steps | Expected |
+|---|---|---|
+| 3.1 | Click the **Română** button. | Every panel text switches to Romanian (buttons, notices, footer, context line, e.g. "3 elemente selectate"). The button now says **English**. Restart Revit: Romanian is kept. |
+| 3.2 | Select 25 elements. | Context line shows "25 de elemente selectate". |
+| 3.3 | Ask "Ce tipuri de uși avem în proiect?" | Answer in Romanian listing door types, mentioning the default and most used. |
+| 3.4 | Edit `%APPDATA%\RevitAi\standards.json`: `{ "default": { "Walls": ["<an interior wall type in your project>"] } }`. Ask "Create a 3 m wall from the end of this wall." | Plan uses that wall type and the answer says it is the project standard. (No Revit restart needed.) |
+| 3.5 | Add a standard entry for a type that doesn't exist; ask "What are our standard wall types?" | Lists the matched type and says the other is not loaded in the project. |
+| 3.6 | Select a door; ask "Which rooms does this door connect?" | Names the rooms on both sides (or says there are none). |
+| 3.7 | Select a room; ask "Which walls bound this room and how long are they?" | Lists the bounding walls with lengths matching Revit. |
+| 3.8 | Select a wall; ask "What is next to this wall?" | Lists joined walls, hosted doors/windows and nearby elements, nearest first. |
+| 3.9 | Select a wall; ask "Make it 300 mm longer." | Plan created without a get_selected_elements call (the selection is already in context; check the log's tool list). |
+| 3.10 | Ask "Make this room 1 m wider." | Says moving walls sideways is not available yet; no plan. |
+| 3.11 | Set `"Language": "fr"` in settings.json and restart. | Panel in English; log WARN about the language. |
+
 ## Results
 
 | Date | Revit version/build | Tester | Result | Notes |

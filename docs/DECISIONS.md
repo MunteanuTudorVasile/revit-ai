@@ -386,3 +386,37 @@ Details:
 - Tool schemas follow strict-mode rules: every property listed in `required`, `additionalProperties: false`, optional values expressed as `["type", "null"]`.
 - The API key is read from the encrypted store on every request (ADR-029).
 - Moving to the newer Responses API, or to another provider, only changes the `IAiClient` implementation.
+
+---
+
+## ADR-033 — Project Standards File
+
+Status: Accepted (2026-10-07)
+
+Decision: preferred types live in `%APPDATA%\RevitAi\standards.json`, edited by the user:
+
+```json
+{
+  "default":  { "Walls": ["Basic Wall: Interior - 100mm"], "Doors": ["Single-Flush: 0915 x 2134mm"] },
+  "projects": { "House": { "Walls": ["Basic Wall: Interior - 125mm"] } }
+}
+```
+
+- Entries are `"Family: Type"` or `"Type"`, most preferred first; category names as shown in Revit.
+- A project entry (document title without `.rvt`) replaces the default list for the categories it names.
+- The AI reads standards through `get_project_standard_types` and `find_family_types` and never writes them (resolves review item A8 and decision D6).
+- The file is created empty on first start and re-read on every tool call, so edits apply without restarting Revit.
+
+Reason: deterministic, inspectable and editable without code (PRODUCT_SPEC §13).
+
+---
+
+## ADR-034 — Panel Language
+
+Status: Accepted (2026-10-07)
+
+Decision: panel texts exist in English and Romanian (`UiText`); English is the default, set with `Language` in `settings.json` or the panel's language button.
+
+- The AI's instructions stay in English for reliability. They state the interface language, and the AI answers in the language the user writes in.
+- Not yet localized: plan summaries and step outcomes produced by the tools (English), and Revit's own warnings (Revit's language).
+- A unit test enforces that every English text has a Romanian translation with the same placeholders.

@@ -36,6 +36,35 @@ public sealed record ElementParameter(
     double? ValueM2,
     bool IsReadOnly);
 
+public sealed record FamilyTypeInfo(
+    long TypeId,
+    string? Family,
+    string Type,
+    bool IsDefault,
+    int? PreferredRank,
+    int InstanceCount);
+
+public sealed record FamilyTypesResult(string Category, int TotalCount, bool Truncated, IReadOnlyList<FamilyTypeInfo> Types);
+
+public sealed record StandardTypesResult(
+    string Category,
+    bool Configured,
+    IReadOnlyList<FamilyTypeInfo> Preferred,
+    IReadOnlyList<string> NotFoundInProject,
+    string? Note);
+
+public sealed record NearbyElement(ElementSummary Element, double CenterDistanceMm);
+
+public sealed record NearbyElementsResult(long ElementId, double RadiusMm, int TotalCount, bool Truncated, IReadOnlyList<NearbyElement> Elements);
+
+public sealed record RoomInfo(long Id, string? Number, string? Name, string? Level, double AreaM2);
+
+public sealed record ElementRoomResult(long ElementId, RoomInfo? Room, RoomInfo? FromRoom, RoomInfo? ToRoom, string? Note);
+
+public sealed record BoundarySegmentInfo(long? ElementId, string? Category, PointMm Start, PointMm End, double LengthMm);
+
+public sealed record RoomBoundaryResult(RoomInfo Room, IReadOnlyList<IReadOnlyList<BoundarySegmentInfo>> Loops, string? Note);
+
 public sealed record ParametersResult(
     long ElementId,
     IReadOnlyList<ElementParameter> Parameters,
