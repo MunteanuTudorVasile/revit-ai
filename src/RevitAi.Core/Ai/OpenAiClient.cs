@@ -13,14 +13,20 @@ namespace RevitAi.Core.Ai;
 /// </summary>
 public sealed class OpenAiClient : IAiClient
 {
+    /// <summary>Waits before retrying a temporarily overloaded service (HTTP 502/503/504).</summary>
+    private static readonly TimeSpan[] DefaultRetryDelays = [TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(5)];
+
     private readonly HttpClient _http;
     private readonly Func<AiConnection> _connection;
+    private readonly IReadOnlyList<TimeSpan> _retryDelays;
 
     /// <param name="connection">Read on every request, so a newly saved key, service or model takes effect immediately.</param>
-    public OpenAiClient(HttpClient http, Func<AiConnection> connection)
+    /// <param name="retryDelays">Delays between retries when the service is busy; tests pass zeros.</param>
+    public OpenAiClient(HttpClient http, Func<AiConnection> connection, IReadOnlyList<TimeSpan>? retryDelays = null)
     {
         _http = http;
         _connection = connection;
+        _retryDelays = retryDelays ?? DefaultRetryDelays;
     }
 
     public async Task<AiResponse> CompleteAsync(AiRequest request, CancellationToken cancellationToken)
@@ -31,21 +37,32 @@ public sealed class OpenAiClient : IAiClient
             throw new AiServiceException(AiFailure.MissingApiKey, $"No API key is set for {connection.Provider.DisplayName}.");
         }
 
-        using var message = new HttpRequestMessage(HttpMethod.Post, connection.Provider.Endpoint)
+        string json = BuildBody(request, connection.Model, connection.Provider).ToJsonString();
+        for (int attempt = 0; ; attempt++)
         {
-            Content = new StringContent(BuildBody(request, connection.Model, connection.Provider).ToJsonString(), Encoding.UTF8, "application/json"),
-        };
-        message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", connection.ApiKey);
+            using var message = new HttpRequestMessage(HttpMethod.Post, connection.Provider.Endpoint)
+            {
+                Content = new StringContent(json, Encoding.UTF8, "application/json"),
+            };
+            message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", connection.ApiKey);
 
-        using HttpResponseMessage response = await _http.SendAsync(message, cancellationToken).ConfigureAwait(false);
-        string body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            using HttpResponseMessage response = await _http.SendAsync(message, cancellationToken).ConfigureAwait(false);
+            string body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
 
-        if (!response.IsSuccessStatusCode)
-        {
+            if (response.IsSuccessStatusCode)
+            {
+                return ParseResponse(body);
+            }
+
+            bool busy = response.StatusCode is HttpStatusCode.BadGateway or HttpStatusCode.ServiceUnavailable or HttpStatusCode.GatewayTimeout;
+            if (busy && attempt < _retryDelays.Count)
+            {
+                await Task.Delay(_retryDelays[attempt], cancellationToken).ConfigureAwait(false);
+                continue;
+            }
+
             throw MapError(response.StatusCode, body);
         }
-
-        return ParseResponse(body);
     }
 
     /// <summary>
@@ -172,9 +189,13 @@ public sealed class OpenAiClient : IAiClient
             return new AiServiceException(AiFailure.InvalidApiKey, detail);
         }
 
-        return status == HttpStatusCode.TooManyRequests
-            ? new AiServiceException(AiFailure.RateLimited, detail)
-            : new AiServiceException(AiFailure.ServiceError, $"HTTP {(int)status}: {detail}");
+        return status switch
+        {
+            HttpStatusCode.TooManyRequests => new AiServiceException(AiFailure.RateLimited, detail),
+            HttpStatusCode.BadGateway or HttpStatusCode.ServiceUnavailable or HttpStatusCode.GatewayTimeout
+                => new AiServiceException(AiFailure.Busy, detail),
+            _ => new AiServiceException(AiFailure.ServiceError, $"HTTP {(int)status}: {detail}"),
+        };
     }
 
     private static string? ExtractErrorMessage(string body)

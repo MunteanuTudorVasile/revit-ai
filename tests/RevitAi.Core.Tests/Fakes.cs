@@ -112,3 +112,16 @@ internal sealed class FakeHttpHandler(HttpStatusCode status, string body) : Http
         return new HttpResponseMessage(status) { Content = new StringContent(body) };
     }
 }
+
+/// <summary>Returns the given responses in order (the last one repeats) and counts requests.</summary>
+internal sealed class SequenceHttpHandler(params (HttpStatusCode Status, string Body)[] responses) : HttpMessageHandler
+{
+    public int Requests { get; private set; }
+
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        (HttpStatusCode status, string body) = responses[Math.Min(Requests, responses.Length - 1)];
+        Requests++;
+        return Task.FromResult(new HttpResponseMessage(status) { Content = new StringContent(body) });
+    }
+}

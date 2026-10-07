@@ -657,6 +657,7 @@ public sealed class AssistantViewModel : INotifyPropertyChanged
         AiFailure.InvalidApiKey => T["AiInvalidKey"],
         AiFailure.RateLimited => T.Format("AiRateLimited", ex.Message),
         AiFailure.BadResponse => T["AiBadResponse"],
+        AiFailure.Busy => T.Format("AiBusy", ex.Message),
         _ => T.Format("AiFailed", ex.Message),
     };
 

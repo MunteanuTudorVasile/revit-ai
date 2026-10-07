@@ -233,6 +233,46 @@ public class OpenAiClientTests
         Assert.False(body.RootElement.GetProperty("messages")[2].GetProperty("tool_calls")[0].TryGetProperty("extra_content", out _));
     }
 
+    private static OpenAiClient WithRetries(SequenceHttpHandler handler) =>
+        new(new HttpClient(handler), () => new AiConnection(AiProviders.Gemini, "m", "AIza"), [TimeSpan.Zero, TimeSpan.Zero]);
+
+    [Fact]
+    public async Task Busy_service_is_retried_and_then_succeeds()
+    {
+        var handler = new SequenceHttpHandler(
+            (HttpStatusCode.ServiceUnavailable, """{ "error": { "message": "high demand" } }"""),
+            (HttpStatusCode.OK, TextResponse));
+
+        AiResponse response = await WithRetries(handler).CompleteAsync(Request(new UserMessage("hi")), CancellationToken.None);
+
+        Assert.Equal("Level 1.", response.Text);
+        Assert.Equal(2, handler.Requests);
+    }
+
+    [Fact]
+    public async Task Busy_service_after_all_retries_reports_busy()
+    {
+        var handler = new SequenceHttpHandler((HttpStatusCode.ServiceUnavailable, """{ "error": { "message": "high demand" } }"""));
+
+        var ex = await Assert.ThrowsAsync<AiServiceException>(
+            () => WithRetries(handler).CompleteAsync(Request(new UserMessage("hi")), CancellationToken.None));
+
+        Assert.Equal(AiFailure.Busy, ex.Failure);
+        Assert.Equal(3, handler.Requests);
+    }
+
+    [Fact]
+    public async Task Rate_limits_are_not_retried()
+    {
+        var handler = new SequenceHttpHandler((HttpStatusCode.TooManyRequests, """{ "error": { "message": "quota" } }"""));
+
+        var ex = await Assert.ThrowsAsync<AiServiceException>(
+            () => WithRetries(handler).CompleteAsync(Request(new UserMessage("hi")), CancellationToken.None));
+
+        Assert.Equal(AiFailure.RateLimited, ex.Failure);
+        Assert.Equal(1, handler.Requests);
+    }
+
     [Theory]
     [InlineData("AIzaSyExample", "gemini")]
     [InlineData(" sk-proj-abc ", "openai")]

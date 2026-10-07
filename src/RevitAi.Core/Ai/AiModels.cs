@@ -35,6 +35,9 @@ public enum AiFailure
     RateLimited,
     ServiceError,
     BadResponse,
+
+    /// <summary>The service is temporarily overloaded (HTTP 502/503/504), even after retrying.</summary>
+    Busy,
 }
 
 public sealed class AiServiceException(AiFailure failure, string message) : Exception(message)
