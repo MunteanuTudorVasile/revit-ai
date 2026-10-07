@@ -21,7 +21,9 @@ public sealed class PipeCheckCommand : IExternalCommand
 
     public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
     {
-        if (App.Services is not { } services || !services.Registry.TryGet("check_pipe_systems", out ITool tool) || tool is not RevitReadTool check)
+        if (App.Services is not { } services
+            || !services.Registry.TryGet("check_pipe_systems", out ITool tool) || tool is not RevitReadTool check
+            || !services.Registry.TryGet("find_pipe_joints", out ITool jointTool) || jointTool is not RevitReadTool findJoints)
         {
             message = "Revit AI did not start correctly; see the log.";
             return Result.Failed;
@@ -43,12 +45,19 @@ public sealed class PipeCheckCommand : IExternalCommand
         });
 
         var report = (PipeSystemsReport)check.ExecuteInContext(commandData.Application, arguments);
+        var joints = (PipeJointsReport)findJoints.ExecuteInContext(commandData.Application, JsonSerializer.SerializeToElement(new
+        {
+            elementIds = selected.Count == 0 ? null : selected.Select(id => id.Value).ToArray(),
+            levelId = (long?)null,
+            searchDistanceMm = (double?)null,
+            limit = (long?)500,
+        }));
         DateTimeOffset now = DateTimeOffset.Now;
         string path = Path.Combine(services.LocalDataDir, $"pipe-check-{now:yyyyMMdd-HHmmss}.md");
         try
         {
             Directory.CreateDirectory(services.LocalDataDir);
-            File.WriteAllText(path, PipeCheckReport.Format(report, uiDocument.Document.Title, now));
+            File.WriteAllText(path, PipeCheckReport.Format(report, uiDocument.Document.Title, now, joints));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -60,7 +69,9 @@ public sealed class PipeCheckCommand : IExternalCommand
         var dialog = new TaskDialog(Title)
         {
             MainInstruction = PipeCheckReport.HasProblems(report) ? "Problems found" : "No pipe problems found",
-            MainContent = $"Checked {(selected.Count == 0 ? "the whole model" : "the selection")}: {PipeCheckReport.Summary(report)}.",
+            MainContent = $"Checked {(selected.Count == 0 ? "the whole model" : "the selection")}: {PipeCheckReport.Summary(report)}.\n\n" +
+                $"{PipeCheckReport.JointSummary(joints)}." +
+                (joints.ProposalCount > 0 ? "\nTo add them, ask the assistant: \"connect the pipes the check found\" (you preview before anything changes)." : ""),
             CommonButtons = TaskDialogCommonButtons.Close,
         };
 

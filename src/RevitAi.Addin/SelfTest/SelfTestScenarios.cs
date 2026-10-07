@@ -494,6 +494,23 @@ internal sealed class SelfTestScenarios
             (long main, long branch) = TwoPipes(new XYZ(0, 90_000, 3000), new XYZ(4000, 90_000, 3000), new XYZ(2000, 89_000, 3000), new XYZ(2000, 91_000, 3000));
             ExpectRefused(() => _run.Validate("connect_pipes_with_tee", new { mainPipeId = (object)main, branchPipeId = (object)branch }));
         });
+
+        _run.Check("find_pipe_joints + connect_pipes (elbow, tee and merge in one plan)", () =>
+        {
+            (long a, long b) = TwoPipes(new XYZ(0, 100_000, 3000), new XYZ(1900, 100_000, 3000), new XYZ(2000, 100_100, 3000), new XYZ(2000, 103_000, 3000));
+            (long c, long d) = TwoPipes(new XYZ(10_000, 100_000, 3000), new XYZ(14_000, 100_000, 3000), new XYZ(12_000, 100_100, 3000), new XYZ(12_000, 103_000, 3000));
+            (long e, long f) = TwoPipes(new XYZ(20_000, 100_000, 3000), new XYZ(22_000, 100_000, 3000), new XYZ(22_200, 100_000, 3000), new XYZ(25_000, 100_000, 3000));
+            long[] ids = [a, b, c, d, e, f];
+            object Scope() => new { elementIds = ids, levelId = (long?)null, searchDistanceMm = (double?)null, limit = (long?)50 };
+
+            PipeJointsReport found = _run.Read<PipeJointsReport>("find_pipe_joints", Scope());
+            Assert((found.ElbowCount, found.TeeCount, found.MergeCount) == (1, 1, 1),
+                $"expected 1 elbow, 1 tee and 1 merge, found {found.ElbowCount}, {found.TeeCount} and {found.MergeCount}");
+
+            _run.ApplyOk(("connect_pipes", new { connections = found.Proposals.Select(p => new { pipeId1 = p.PipeId1, pipeId2 = p.PipeId2 }).ToList() }));
+            PipeJointsReport after = _run.Read<PipeJointsReport>("find_pipe_joints", Scope());
+            Assert(after.ProposalCount == 0, $"{after.ProposalCount} joint(s) still found after connecting");
+        });
     }
 
     /// <summary>Two pipes from mm coordinates relative to the self-test origin (Z relative to the level).</summary>

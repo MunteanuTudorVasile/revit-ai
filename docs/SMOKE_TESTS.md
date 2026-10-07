@@ -205,7 +205,9 @@ Put this in `%APPDATA%\RevitAi\standards.json` (adapt names to your project):
 |---|---|---|
 | P.1 | Select two pipes that would meet at a corner (gap between their ends). Ask "Connect these with an elbow." | Plan line names both pipes, their diameters, the bend angle and how far each end moves. Preview, then Apply: an elbow from the pipe type's routing preferences, connected to both pipes. One undo entry. |
 | P.2 | Select two parallel pipes, or pipes at different heights, and ask the same. | Clear refusal explaining why (parallel / don't meet). Nothing changes. |
-| P.3 | Select a pipe and another pipe ending at its middle. | Refused: needs a tee, not available yet. |
+| P.3 | Select a pipe and another pipe ending near its middle, at a right angle. Ask "Connect these." | Plan connect_pipes with a tee; Apply splits the main pipe and inserts a tee connected to all three pipes. |
+| P.4 | Select two pipes in a straight line with a gap. Ask "Merge these." | Plan line says the shorter pipe is removed and its own parameter values are lost (preview required). Apply: one pipe; anything connected to the removed pipe's far end is connected to it. |
+| P.5 | On a copy of SCAN, ask "Connect all the loose pipes on this level." | find_pipe_joints, then the counts (elbows, tees, merges, places that need a decision and why), then ONE connect_pipes plan. Preview, Apply, one undo. Run **Pipe check** again: fewer open ends, no joints left to add (except "deferred" ones, which a second run picks up). |
 
 ## Query and pipe check
 
@@ -215,6 +217,8 @@ Put this in `%APPDATA%\RevitAi\standards.json` (adapt names to your project):
 | Q.2 | Ask "Which pipe fittings have no Mark?" | Count and examples; offers to select them. |
 | Q.3 | Click **Add-Ins → Revit AI → Pipe check** with nothing selected. | Summary of open ends, pipes without system, systems not well connected; "Select the problem elements" selects them; the report opens. |
 | Q.4 | Select part of a system and click **Pipe check**. | Only the selection is checked. |
+| Q.5 | Click **Pipe check** on SCAN. | The dialog also says how many joints can be added (elbows, tees, merges) and how many places need a decision; the report has both lists with pipe IDs and reasons. |
+| Q.6 | After N.4 (and a few more impossible requests), click **Requests**. | Most-asked missing capabilities with their area and count; "Open the full summary" opens the Markdown report grouped by area. |
 
 ## Results
 

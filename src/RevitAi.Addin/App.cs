@@ -76,7 +76,7 @@ public sealed class App : IExternalApplication
             }
 
             var text = new TextSource(new UiText(settings.Language));
-            var unmetRequests = new UnmetRequestLog(Path.Combine(LocalDataDir, "unmet-requests.jsonl"), _log);
+            var unmetRequests = new UnmetRequestLog(Path.Combine(LocalDataDir, UnmetRequestLog.FileName), _log);
             ToolRegistry registry = CreateToolRegistry(dispatcher, standardsPath, text, unmetRequests);
             var orchestrator = new Orchestrator(ai, registry, _log, settings.MaxAiSteps);
             var history = new ActionHistory(Path.Combine(LocalDataDir, "history.jsonl"), _log);
@@ -169,9 +169,14 @@ public sealed class App : IExternalApplication
         registry.Register(new CreateWindowTool(dispatcher, text));
         registry.Register(new CreateFloorTool(dispatcher, text));
         registry.Register(new MoveElementsTool(dispatcher, text));
-        registry.Register(new ConnectPipesWithElbowTool(dispatcher, text));
-        registry.Register(new MergePipesTool(dispatcher, text));
-        registry.Register(new ConnectPipesWithTeeTool(dispatcher, text));
+        var elbow = new ConnectPipesWithElbowTool(dispatcher, text);
+        var merge = new MergePipesTool(dispatcher, text);
+        var tee = new ConnectPipesWithTeeTool(dispatcher, text);
+        registry.Register(elbow);
+        registry.Register(merge);
+        registry.Register(tee);
+        registry.Register(new ConnectPipesTool(dispatcher, text, elbow, merge, tee));
+        registry.Register(new FindPipeJointsTool(dispatcher));
         registry.Register(new DeleteElementsTool(dispatcher, text));
         registry.Register(new SetParametersTool(dispatcher, text));
         registry.Register(new ApplyViewTemplateTool(dispatcher, text));
@@ -213,7 +218,18 @@ public sealed class App : IExternalApplication
             assemblyName: typeof(App).Assembly.Location,
             className: typeof(PipeCheckCommand).FullName)
         {
-            ToolTip = "Check pipe systems (open ends, pipes without a system, systems not well connected) in the selection or the whole model. Read-only.",
+            ToolTip = "Check pipe systems (open ends, pipes without a system, systems not well connected) and find missing joints (elbows, tees, merges) in the selection or the whole model. Read-only.",
+            Image = LoadIcon("assistant-16.png"),
+            LargeImage = LoadIcon("assistant-32.png"),
+        });
+
+        panel.AddItem(new PushButtonData(
+            name: "RevitAi.Requests",
+            text: "Requests",
+            assemblyName: typeof(App).Assembly.Location,
+            className: typeof(RequestsCommand).FullName)
+        {
+            ToolTip = "What people asked the assistant for that it cannot do yet, grouped by area, most asked first. Saved as a report.",
             Image = LoadIcon("assistant-16.png"),
             LargeImage = LoadIcon("assistant-32.png"),
         });

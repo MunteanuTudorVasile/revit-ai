@@ -131,6 +131,47 @@ public sealed record PipeSystemsReport(
     IReadOnlyList<SystemIssue> SystemsNotWellConnected,
     bool Truncated);
 
+/// <param name="Kind">"elbow", "merge" or "tee".</param>
+/// <param name="PipeId1">Elbow: first pipe; merge: the pipe that is kept; tee: the main pipe.</param>
+public sealed record PipeJointItem(string Kind, long PipeId1, long PipeId2, PointMm Location, double DistanceMm);
+
+public sealed record PipeJointProblem(long PipeId, long NearestPipeId, string Reason, PointMm Location, double DistanceMm);
+
+public sealed record PipeJointsReport(
+    int PipesChecked,
+    int OpenEndCount,
+    int ProposalCount,
+    int ElbowCount,
+    int TeeCount,
+    int MergeCount,
+    IReadOnlyList<PipeJointItem> Proposals,
+    int UnclearCount,
+    IReadOnlyList<PipeJointProblem> Unclear,
+    int DeferredCount,
+    int LoneOpenEndCount,
+    bool Truncated)
+{
+    public static PipeJointsReport From(Geometry.JointSearchResult result, int limit) => new(
+        result.PipesChecked,
+        result.OpenEndCount,
+        result.Proposals.Count,
+        result.Proposals.Count(p => p.Kind == Geometry.JointKind.Elbow),
+        result.Proposals.Count(p => p.Kind == Geometry.JointKind.Tee),
+        result.Proposals.Count(p => p.Kind == Geometry.JointKind.Merge),
+        result.Proposals.Take(limit)
+            .Select(p => new PipeJointItem(p.Kind.ToString().ToLowerInvariant(), p.PipeId1, p.PipeId2, Mm(p.Location), p.DistanceMm))
+            .ToList(),
+        result.Unclear.Count,
+        result.Unclear.Take(limit)
+            .Select(u => new PipeJointProblem(u.PipeId, u.NearestPipeId, Geometry.PipeJoints.Describe(u.Issue), Mm(u.Location), u.DistanceMm))
+            .ToList(),
+        result.DeferredCount,
+        result.LoneOpenEndCount,
+        result.Proposals.Count > limit || result.Unclear.Count > limit);
+
+    private static PointMm Mm(Geometry.Point3 p) => new(Math.Round(p.X), Math.Round(p.Y), Math.Round(p.Z));
+}
+
 public sealed record ParametersResult(
     long ElementId,
     IReadOnlyList<ElementParameter> Parameters,

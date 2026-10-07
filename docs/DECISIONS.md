@@ -662,3 +662,33 @@ Decision: `connect_pipes_with_tee` connects a branch pipe to the middle of a mai
 - Risk: SafeModification, like the elbow: nothing is deleted, and one undo reverts it.
 - Not yet: angled branches (wyes), reducing tees that the routing preferences don't cover (Revit's message is shown),
   and cross fittings.
+
+---
+
+## ADR-051 — Find Missing Pipe Joints, Connect Many at Once, and the Requests Summary
+
+Status: Accepted (2026-10-08)
+
+Decision:
+
+- `PipeJoints` (Revit-free, unit-tested) decides which fitting joins two straight pipes, using the same rules as ADR-047,
+  049 and 050:
+  - corner → elbow, which needs the same diameter;
+  - straight line → merge, which needs the same diameter, pipe type and system type;
+  - one pipe ending at the middle of the other → tee.
+
+  Otherwise it gives a reason: different diameters (a reducer), angled branch, different heights, crossing, and so on.
+- `find_pipe_joints` (read-only) looks at every free end of a straight pipe. Within 500 mm of the end (configurable up to
+  3000 mm), it proposes the nearest joint that uses that end and a free end of the other pipe. Each pipe is in at most
+  one proposal, so all proposals can be applied together; the rest are counted as "deferred" for a second run. Places
+  with no standard joint are listed with the reason. Parallel pipes side by side (offset larger than the diameter, for
+  example in a rack) are not reported.
+- `connect_pipes` (LargeModification, preview required) takes 1–100 pipe pairs, chooses the joint per pair and carries
+  it out through the specific tool. Every validation and verification of that tool applies, and a failure names the pair
+  and rolls the whole plan back. For a merge, the longer pipe is kept. The AI uses it for "connect these" and for the
+  finder's proposals.
+- The **Pipe check** button also runs the finder and reports the joints that can be added and the places that need a
+  decision. Applying is done through the assistant, so it always goes through Preview → Apply.
+- `report_unavailable_request` now also records an `area` (piping, hvac, electrical, architecture, structure,
+  documentation, data, other). The **Requests** button groups the recorded requests by area and missing capability, most
+  asked first, and saves a Markdown summary. This is the backlog from real use. It stays local.

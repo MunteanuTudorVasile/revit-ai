@@ -2,6 +2,7 @@ using System.Text.Json;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.DB.Mechanical;
 using Autodesk.Revit.DB.Plumbing;
+using Autodesk.Revit.UI;
 using RevitAi.Addin.Dispatch;
 using RevitAi.Core.Geometry;
 using RevitAi.Core.Localization;
@@ -475,4 +476,226 @@ public sealed class ConnectPipesWithTeeTool(RevitDispatcher dispatcher, TextSour
             : throw new ToolException(T.Format("Tool.NotAPipe", id));
 
     private sealed record Tee(Pipe Main, Pipe Branch, TeePlan Plan);
+}
+
+/// <summary>Reads straight pipes as the Revit-free joint logic sees them (ADR-051).</summary>
+internal static class PipeReader
+{
+    public static PipeInfo Info(Pipe pipe)
+    {
+        Curve curve = ((LocationCurve)pipe.Location).Curve;
+        return new PipeInfo(
+            pipe.Id.Value,
+            ConnectPipesWithElbowTool.Segment(pipe),
+            UnitUtils.ConvertFromInternalUnits(pipe.Diameter, UnitTypeId.Millimeters),
+            pipe.GetTypeId().Value,
+            (pipe.get_Parameter(BuiltInParameter.RBS_PIPING_SYSTEM_TYPE_PARAM)?.AsElementId() ?? ElementId.InvalidElementId).Value,
+            !ConnectPipesWithElbowTool.NearestConnector(pipe, curve.GetEndPoint(0)).IsConnected,
+            !ConnectPipesWithElbowTool.NearestConnector(pipe, curve.GetEndPoint(1)).IsConnected);
+    }
+
+    public static bool IsStraight(Element element) => element is Pipe { Location: LocationCurve { Curve: Line } };
+}
+
+public sealed class FindPipeJointsTool(RevitDispatcher dispatcher) : RevitReadTool(dispatcher)
+{
+    private const int DefaultLimit = 100;
+    private const int MaxLimit = 500;
+
+    public override string Name => "find_pipe_joints";
+
+    public override string Description =>
+        "Finds missing pipe joints (read-only): open ends of straight pipes next to another pipe, and which fitting fits there " +
+        "(elbow, tee or merge), using the same rules as the pipe tools. Each pipe is in at most one proposal, so all proposals " +
+        "can be passed to connect_pipes together. Also lists places where no standard joint fits, with the reason (e.g. " +
+        "different diameters need a reducer, angled branch, different heights). Scope: the given elements, or a level, or " +
+        "(both null) the whole model.";
+
+    public override string ProgressLabel => "Looking for missing pipe joints…";
+
+    protected override string SchemaJson => """
+        {
+          "type": "object",
+          "properties": {
+            "elementIds": { "type": ["array", "null"], "items": { "type": "integer" }, "description": "Only these pipes. Null for a level or the whole model." },
+            "levelId": { "type": ["integer", "null"], "description": "Only pipes on this level. Null for all." },
+            "searchDistanceMm": { "type": ["number", "null"], "description": "How far from an open end to look for another pipe. Null for 500." },
+            "limit": { "type": ["integer", "null"], "description": "Maximum items listed. Null for 100." }
+          },
+          "required": ["elementIds", "levelId", "searchDistanceMm", "limit"],
+          "additionalProperties": false
+        }
+        """;
+
+    protected override object Execute(UIApplication app, JsonElement arguments)
+    {
+        Document document = RevitRead.RequireDocument(app);
+        int limit = (int)Math.Clamp(RevitRead.OptionalLong(arguments, "limit") ?? DefaultLimit, 1, MaxLimit);
+        long? levelId = RevitRead.OptionalLong(arguments, "levelId");
+        double search = arguments.GetProperty("searchDistanceMm").ValueKind == JsonValueKind.Number
+            ? Math.Clamp(arguments.GetProperty("searchDistanceMm").GetDouble(), 10, PipeCorner.DefaultMaxExtensionMm)
+            : PipeJoints.DefaultSearchMm;
+        HashSet<long>? only = arguments.GetProperty("elementIds").ValueKind == JsonValueKind.Array
+            ? arguments.GetProperty("elementIds").EnumerateArray().Select(id => id.GetInt64()).ToHashSet()
+            : null;
+
+        List<PipeInfo> pipes = new FilteredElementCollector(document)
+            .OfClass(typeof(Pipe))
+            .Where(PipeReader.IsStraight)
+            .Where(e => (only is null || only.Contains(e.Id.Value)) && (levelId is null || e.LevelId.Value == levelId))
+            .Cast<Pipe>()
+            .Select(PipeReader.Info)
+            .ToList();
+
+        return PipeJointsReport.From(PipeJoints.Find(pipes, search), limit);
+    }
+}
+
+/// <summary>
+/// One or many pipe pairs; the joint (elbow, tee or merge) is chosen deterministically by <see cref="PipeJoints"/> and carried
+/// out by the specific pipe tool, so every rule and check of those tools applies (ADR-051).
+/// </summary>
+public sealed class ConnectPipesTool(
+    RevitDispatcher dispatcher,
+    TextSource text,
+    ConnectPipesWithElbowTool elbow,
+    MergePipesTool merge,
+    ConnectPipesWithTeeTool tee) : RevitWriteTool(dispatcher, text)
+{
+    private const int MaxPairs = 100;
+
+    public override string Name => "connect_pipes";
+
+    public override string Description =>
+        "Proposes connecting pipe pairs, choosing the joint for each pair: an elbow at a corner, a tee where one pipe ends at the " +
+        "middle of the other, or a merge into one pipe when they are in a straight line (the shorter pipe is removed and its own " +
+        $"parameter values are lost). Use it for \"connect these pipes\" and for the proposals of find_pipe_joints. At most {MaxPairs} " +
+        "pairs; a pipe may appear in only one pair. Pairs where no standard joint fits are refused with the reason.";
+
+    public override string ProgressLabel => "Checking the pipe joints…";
+
+    public override RiskLevel Risk => RiskLevel.LargeModification;
+
+    protected override string SchemaJson => """
+        {
+          "type": "object",
+          "properties": {
+            "connections": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "pipeId1": { "type": "integer", "description": "A pipe ID." },
+                  "pipeId2": { "type": "integer", "description": "The other pipe ID." }
+                },
+                "required": ["pipeId1", "pipeId2"],
+                "additionalProperties": false
+              },
+              "description": "Pipe pairs to connect."
+            }
+          },
+          "required": ["connections"],
+          "additionalProperties": false
+        }
+        """;
+
+    protected override string Validate(Document document, JsonElement arguments)
+    {
+        List<Step> steps = Steps(document, arguments);
+        List<string> summaries = steps.Select(step => Guard(step, () => step.Tool.ValidateInContext(document, step.Arguments))).ToList();
+        if (steps.Count == 1)
+        {
+            return summaries[0];
+        }
+
+        int merges = steps.Count(s => s.Kind == JointKind.Merge);
+        string summary = T.Format("Tool.ConnectSummary", steps.Count,
+            steps.Count(s => s.Kind == JointKind.Elbow), steps.Count(s => s.Kind == JointKind.Tee), merges);
+        return merges > 0 ? summary + T["Tool.ConnectSummaryMerges"] : summary;
+    }
+
+    public override OperationResult Apply(Document document, JsonElement arguments)
+    {
+        List<Step> steps = Steps(document, arguments);
+        var ids = new List<long>();
+        foreach (Step step in steps)
+        {
+            OperationResult result = Guard(step, () => step.Tool.Apply(document, step.Arguments));
+            if (result.ElementId is { } id)
+            {
+                ids.Add(id);
+            }
+
+            ids.AddRange(result.OtherIds ?? []);
+        }
+
+        return new OperationResult(null,
+            T.Format("Tool.ConnectDone", steps.Count, steps.Count(s => s.Kind == JointKind.Elbow),
+                steps.Count(s => s.Kind == JointKind.Tee), steps.Count(s => s.Kind == JointKind.Merge)),
+            ids.Distinct().ToList());
+    }
+
+    private List<Step> Steps(Document document, JsonElement arguments)
+    {
+        List<(long A, long B)> pairs = arguments.GetProperty("connections").EnumerateArray()
+            .Select(c => (c.GetProperty("pipeId1").GetInt64(), c.GetProperty("pipeId2").GetInt64()))
+            .ToList();
+        if (pairs.Count == 0 || pairs.Count > MaxPairs)
+        {
+            throw new ToolException(T.Format("Tool.ConnectCount", MaxPairs));
+        }
+
+        long? twice = pairs.SelectMany(p => new[] { p.A, p.B }).GroupBy(id => id).FirstOrDefault(g => g.Count() > 1)?.Key;
+        if (twice is { } repeated)
+        {
+            throw new ToolException(T.Format("Tool.ConnectPipeTwice", repeated));
+        }
+
+        return pairs.Select(pair => PlanPair(document, pair.A, pair.B)).ToList();
+    }
+
+    private Step PlanPair(Document document, long a, long b)
+    {
+        if (a == b)
+        {
+            throw new ToolException(T["Tool.PipesSame"]);
+        }
+
+        PipeInfo first = Info(document, a);
+        PipeInfo second = Info(document, b);
+        JointResult joint = PipeJoints.Classify(first, second);
+        return joint.Kind switch
+        {
+            JointKind.Elbow => new Step(a, b, JointKind.Elbow, elbow, Args(new { pipeId1 = a, pipeId2 = b })),
+            JointKind.Tee => joint.FirstIsMain
+                ? new Step(a, b, JointKind.Tee, tee, Args(new { mainPipeId = a, branchPipeId = b }))
+                : new Step(a, b, JointKind.Tee, tee, Args(new { mainPipeId = b, branchPipeId = a })),
+            JointKind.Merge => second.Segment.Length > first.Segment.Length
+                ? new Step(a, b, JointKind.Merge, merge, Args(new { pipeId1 = b, pipeId2 = a }))
+                : new Step(a, b, JointKind.Merge, merge, Args(new { pipeId1 = a, pipeId2 = b })),
+            _ => throw new ToolException(T.Format("Tool.ConnectNoJoint", a, b, T["Joint." + joint.Issue])),
+        };
+    }
+
+    private PipeInfo Info(Document document, long id) =>
+        document.GetElement(new ElementId(id)) is Pipe pipe && PipeReader.IsStraight(pipe)
+            ? PipeReader.Info(pipe)
+            : throw new ToolException(T.Format("Tool.NotAPipe", id));
+
+    /// <summary>Names the pair in a failure, so the user knows which of many joints could not be made.</summary>
+    private TResult Guard<TResult>(Step step, Func<TResult> action)
+    {
+        try
+        {
+            return action();
+        }
+        catch (ToolException ex)
+        {
+            throw new ToolException(T.Format("Tool.ConnectPairFailed", step.A, step.B, ex.Message));
+        }
+    }
+
+    private static JsonElement Args(object value) => JsonSerializer.SerializeToElement(value);
+
+    private sealed record Step(long A, long B, JointKind Kind, RevitWriteTool Tool, JsonElement Arguments);
 }

@@ -1,3 +1,4 @@
+using RevitAi.Core.Geometry;
 using RevitAi.Core.Query;
 using RevitAi.Core.Tools;
 
@@ -43,5 +44,25 @@ public class PipeCheckReportTests
     {
         Assert.True(PipeCheckReport.HasProblems(Report(0)));
         Assert.False(PipeCheckReport.HasProblems(Report(0) with { PipesWithoutSystemCount = 0, SystemsNotWellConnected = [] }));
+    }
+
+    [Fact]
+    public void Joint_sections_list_proposals_and_reasons()
+    {
+        PipeInfo[] pipes =
+        [
+            new(1, new Segment3(new Point3(0, 0, 0), new Point3(1900, 0, 0)), 54, 7, 9, false, true),
+            new(2, new Segment3(new Point3(2000, 100, 0), new Point3(2000, 3000, 0)), 54, 7, 9, true, false),
+            new(3, new Segment3(new Point3(0, 9000, 0), new Point3(2000, 9000, 0)), 54, 7, 9, false, true),
+            new(4, new Segment3(new Point3(2100, 9000, 0), new Point3(4000, 9000, 0)), 42, 7, 9, true, false),
+        ];
+        PipeJointsReport joints = PipeJointsReport.From(PipeJoints.Find(pipes), limit: 50);
+
+        string text = PipeCheckReport.Format(Report(0), "SCAN.rvt", DateTimeOffset.Now, joints);
+
+        Assert.Equal("1 joint(s) can be added (1 elbow(s), 0 tee(s), 0 merge(s)), 2 place(s) need a decision", PipeCheckReport.JointSummary(joints));
+        Assert.Contains("## Joints that can be added (1)", text);
+        Assert.Contains("| elbow | 1 | 2 | 1900, 0, 0 |", text);
+        Assert.Contains("| 3 | 4 | different diameters (needs a reducer) | 2000, 9000, 0 |", text);
     }
 }

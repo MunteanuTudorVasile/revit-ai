@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using RevitAi.Core.Geometry;
 using RevitAi.Core.Localization;
 
 namespace RevitAi.Core.Tests.Localization;
@@ -25,6 +26,14 @@ public class UiTextTests
                 Placeholders(english).SetEquals(Placeholders(UiText.RomanianStrings[key])),
                 $"Placeholders differ for '{key}'.");
         }
+    }
+
+    [Fact]
+    public void Every_pipe_joint_reason_has_a_text()
+    {
+        IEnumerable<string> keys = Enum.GetValues<JointIssue>().Where(i => i != JointIssue.None).Select(i => "Joint." + i);
+
+        Assert.Empty(keys.Except(UiText.EnglishStrings.Keys));
     }
 
     [Fact]
