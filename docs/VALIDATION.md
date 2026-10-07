@@ -174,6 +174,16 @@ Example — `create_room`, check:
 - room has valid area
 - room is on expected level
 
+### Fix verification (ADR-041)
+
+When a plan fixes detected issues, post-execution validation also **re-runs the detectors** that reported them:
+
+- issue no longer reported → `fixed (verified)`
+- issue still reported → `still open`, reported to the user, never claimed as fixed
+- new issues of the same category on the affected elements → reported as introduced by the change
+
+Re-checking is read-only and runs after the transaction group has been committed.
+
 ---
 
 ## 12. Validation Result
@@ -239,7 +249,13 @@ AI: explain results and optionally propose fixes.
 
 ## 17. Future Validation
 
-Potential future checks:
+Issue detection is now first-class (ADR-041); detectors map to the Issue model. Planned detectors beyond the existing checks:
+
+- invalid room boundaries: placed rooms with no area, and Revit's "not enclosed" / "redundant room" warnings
+- documentation inconsistencies: views not on sheets, sheets without views, untagged elements in views on sheets
+- geometry/model inconsistencies reported by Revit warnings (e.g. overlapping walls)
+
+Further potential checks:
 
 - room area requirements
 - accessibility requirements

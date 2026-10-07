@@ -719,7 +719,23 @@ Write:
 
 ---
 
-## 36. Tool Design Rules
+## 36. Planned Tools: Issues and Fixes (Phases 8–9, not implemented)
+
+Contracts to be finalised when implemented (ADR-041). All read tools are `READ_ONLY`; fixes reuse the plan → preview → apply flow.
+
+| Tool | Kind | Purpose |
+|---|---|---|
+| `check_model` | read | Run the relevant detectors for a scope (whole model, level or view) and return Issues with severity, description, affected elements, suggested fix and auto-fixable flag. |
+| `find_invalid_rooms` | read (detector) | Placed rooms with no area and rooms flagged by Revit warnings (not enclosed, redundant). |
+| `find_documentation_issues` | read (detector) | Views not on sheets, sheets without views, untagged elements in views placed on sheets. |
+| `fix_issues` | write | Plan the deterministic fixes for given issue IDs, or for all auto-fixable issues; preview; apply; re-check each issue. Risk = highest risk of the fixes it plans. |
+
+Existing check tools (§34) become detectors that report Issues; Revit warnings (`get_model_warnings`) are mapped to Issues
+by category where a mapping exists.
+
+---
+
+## 37. Tool Design Rules
 
 Tools must:
 

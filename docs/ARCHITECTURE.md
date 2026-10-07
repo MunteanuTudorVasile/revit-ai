@@ -392,7 +392,48 @@ Use AI for:
 
 ---
 
-## 19. Scalability
+## 19. Agent Loop and BIM QA (ADR-040, ADR-041)
+
+The "AI BIM engineer" direction adds **no new layers or infrastructure**. The agent is an orchestration capability of the
+existing components:
+
+| Agent step | Existing component |
+|---|---|
+| Understand | Context engine, read tools |
+| Inspect | Check tools (issue detectors) |
+| Reason, plan | AI orchestrator |
+| Validate plan | Schema validation, each write tool's `Validate`, plan references, risk engine |
+| Preview | `PlanExecutor` run + rollback |
+| Confirm when required | Risk engine (registry-owned) + UI (ADR-025, ADR-037) |
+| Execute | `PlanExecutor` in a `TransactionGroup` |
+| Validate result | Per-step post-execution checks, Revit failure handling, **re-running the relevant detectors** |
+| Report | UI messages, action history |
+
+### Issue model (Domain layer, Revit-free)
+
+Check results converge on one **Issue** shape (conceptual; ADR-041):
+
+| Field | Meaning |
+|---|---|
+| issue ID | Stable within a check run (e.g. detector + element IDs) |
+| category | e.g. unhosted door, room without tag, invalid room boundary, non-standard type, missing parameter, duplicate, naming violation, documentation inconsistency, Revit warning |
+| severity | error / warning / info, set by the detector |
+| description | Plain-language explanation |
+| affected element IDs | Elements involved |
+| location / view | Level and/or view where relevant |
+| detected by | Detector (check tool) name |
+| suggested fix | The fix tool and arguments, when one exists |
+| auto-fixable | Set by a **deterministic fix rule**, never by the AI |
+| validation status | open → fix planned → fixed (verified by re-check) / still open |
+
+Detectors are the existing check tools plus Revit's own warnings (`Document.GetWarnings`, e.g. rooms not enclosed or
+overlapping walls); they live in the Revit integration layer and map their findings to Issues. Fix rules (issue category →
+fix tool) live in the Domain layer and only emit operations for the existing plan. A fix is "verified" only when the
+detector no longer reports the issue after Apply.
+
+---
+
+## 20. Scalability
 
 The initial architecture should support adding new tools without rewriting the AI layer.
 

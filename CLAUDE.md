@@ -171,6 +171,8 @@ The AI is NOT responsible for:
 - collision detection
 - security
 - executing arbitrary code
+- deciding whether an issue is safe to fix automatically (fixability comes from deterministic fix rules, ADR-041)
+- claiming an issue is fixed (only a deterministic re-check can confirm it)
 
 ---
 
@@ -465,7 +467,7 @@ Do not rewrite unrelated code.
 
 The product should feel like:
 
-"An expert Revit assistant that understands what I mean and safely performs the work."
+"An expert BIM engineer who works inside Revit: understands what I mean, checks the model, and safely performs the work."
 
 It should NOT feel like:
 

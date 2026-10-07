@@ -2,7 +2,7 @@
 
 ## 1. Design Goal
 
-The interface should feel like a native Revit assistant rather than an external chatbot.
+The interface should feel like an expert BIM engineer working inside Revit (ADR-040), not an external chatbot.
 
 The user should understand:
 
@@ -171,14 +171,23 @@ Examples:
 
 ## 8. Quick Actions
 
-Suggested quick actions:
+Quick actions follow the conceptual modes (PRODUCT_SPEC §6). They are shortcuts into the same assistant, not separate screens:
 
-- Model
-- Document
-- Check
+- Ask
 - Analyze
-- Standards
+- Fix
+- Create
 - Automate
+- Standards
+
+### Issue list (ADR-041)
+
+Results of a model check are shown as an issue list:
+
+- grouped by severity (errors first), with counts per category
+- each issue: plain-language description, affected elements (click to select and zoom), suggested fix
+- "Fix" for one issue, and "Fix all safe issues" for issues marked auto-fixable; both create a plan that is previewed and applied as usual
+- after Apply, each fixed issue shows "fixed (verified)" or "still open" from the re-check
 
 ---
 

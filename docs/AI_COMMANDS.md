@@ -112,7 +112,16 @@ Write tools are not executed during the AI loop. Each call is validated and appe
 
 ## 7. High-Level Skills
 
-High-level workflows are implemented as deterministic orchestration where possible.
+High-level workflows are implemented as deterministic orchestration where possible. They are fixed recipes in code, fetched
+with `get_workflow` (ADR-039), and are composed only from registered tools.
+
+The agent loop behind every request (ADR-040): understand → inspect → reason → plan → validate plan → preview → confirm when
+required → execute → validate result → report. Read-only requests stop after reasoning and report.
+
+For issues (ADR-041), the AI detects them by calling check tools, explains them, and chooses fixes from the suggested fixes.
+It never decides on its own that an issue is safe to fix automatically; that comes from deterministic fix rules. For
+"fix everything that is safe to fix", only issues marked auto-fixable are planned, the plan is previewed, and after Apply the
+issues are re-checked and reported as fixed or still open.
 
 Example: `create_room_workflow` may consist of:
 

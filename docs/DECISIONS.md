@@ -257,7 +257,7 @@ Reason: the assistant is effectively an automation agent inside a user's profess
 
 ## ADR-020 — Product Philosophy
 
-Status: Accepted
+Status: Accepted; refined by ADR-040
 
 The product is not "ChatGPT inside Revit."
 
@@ -364,7 +364,7 @@ Decision: on first run, the user is told that model data (element names, types, 
 
 ## ADR-031 — MVP = Phases 0–3
 
-Status: Accepted (2026-10-07)
+Status: Superseded by ADR-042
 
 Decision: the MVP is roadmap Phases 0–3: foundation, read-only AI, basic modeling (walls, rooms, doors, windows, floors) and context intelligence. Documentation (Phase 4) and model QA (Phase 5) are not MVP success criteria.
 
@@ -489,3 +489,52 @@ Decision: high-level workflows (ADR-014) are fixed, versioned recipes in `RevitA
 Reason: deterministic, reviewable steps without a second execution engine. A unit test ensures recipes only reference tools that exist.
 
 Also: `MaxAiSteps` default raised from 8 to 12 for workflows. `settings.json` now stores only values that differ from the defaults, so changed defaults reach existing installs.
+
+---
+
+## ADR-040 — Product Direction: AI BIM Engineer
+
+Status: Accepted (2026-10-07)
+
+Decision: the product is positioned and specified as an AI BIM engineer inside Revit with four capabilities: **Understand,
+Check, Act, Automate** (PRODUCT_SPEC §1). Conceptual modes Ask / Analyze / Fix / Create / Automate / Standards are
+capabilities of one assistant, not separate screens.
+
+- The architecture does not change (ARCHITECTURE §19): the agent is an orchestration capability of the existing components.
+  Agent loop: understand → inspect → reason → plan → validate plan → preview → confirm when required → execute → validate result → report.
+- No microservices, event infrastructure, agent frameworks, vector databases or other infrastructure are added because of the "agent" positioning.
+- All existing safety decisions remain: registered tools only (ADR-005), deterministic validation (ADR-006), plan → preview → apply (ADR-024),
+  registry-owned risk (ADR-025), destructive confirmation (ADR-037).
+
+Reason: the existing architecture already implements the loop; the new direction mainly adds a first-class issue model (ADR-041).
+
+---
+
+## ADR-041 — Issues Are First-Class; Fixability Is Deterministic
+
+Status: Accepted (2026-10-07), implementation planned in roadmap Phase 8–9
+
+Decision:
+
+- Check results converge on one Issue model (ARCHITECTURE §19): ID, category, severity, description, affected elements,
+  location/view, detected by, suggested fix, auto-fixable, validation status.
+- Detectors are deterministic: the existing check tools, new detectors (room boundaries, documentation) and Revit's own warnings.
+- Whether an issue is auto-fixable, and which tool fixes it, is decided by deterministic fix rules in code, never by the AI.
+- A fix is reported as fixed only when re-running the detector no longer finds the issue (VALIDATION §11).
+- Supersedes ADR-036 ("checks are read-only") for fixing: checks stay read-only; fixes go through plans.
+
+---
+
+## ADR-042 — MVP Boundary
+
+Status: Proposed (2026-10-07)
+
+Proposal: the MVP is
+
+- Phases 0–3 (understand, ask, basic modeling, context): Select / Ask → Understand → Plan → Preview → Apply → Validate, and
+- the core of Phase 8: Issue model, model check with an explained issue list, and fixing single issues with re-check,
+
+**validated in Revit** through the smoke tests. Phases 4–7 already exist and remain available, but are not MVP acceptance criteria.
+"Fix everything that is safe" (Phase 9), agent workflows (Phase 10) and layout generation (Phase 11) are post-MVP.
+
+Supersedes ADR-031.

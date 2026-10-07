@@ -1,6 +1,17 @@
 # Revit AI Assistant — Roadmap
 
-MVP = Phases 0–3 (ADR-031).
+Product direction: AI BIM engineer with four capabilities: Understand, Check, Act, Automate (ADR-040).
+
+MVP boundary (ADR-042): Phases 0–3 plus the core of Phase 8 (issue model, model check, issue list, single-issue fixes),
+validated in Revit. ADR-031 (MVP = Phases 0–3) is superseded.
+
+Order from here:
+
+1. **Milestone: validated in Revit**: Phases 0–7 smoke tests pass on Revit 2025 and 2026. Blocks everything below.
+2. Phase 8: BIM QA as a first-class capability (MVP core).
+3. Phase 9: AI-assisted fixes.
+4. Phase 10: Agent workflows.
+5. Phases 11–13: advanced layout, advanced inputs, cloud.
 
 ## Phase 0 — Product Foundation
 
@@ -182,7 +193,52 @@ These should combine deterministic tools and validation.
 
 ---
 
-## Phase 8 — Advanced Layout Intelligence
+## Phase 8 — BIM QA as a First-Class Capability
+
+Goal: "Check this model" produces a prioritised, explained issue list.
+
+Implement:
+
+- Issue model in Core (ADR-041)
+- existing checks mapped to Issues (untagged rooms, unhosted doors/windows, duplicates, non-standard types, missing parameters, standards violations)
+- Revit warnings as Issues
+- new detectors: invalid room boundaries, documentation inconsistencies (VALIDATION §17)
+- a model-check tool that runs the relevant detectors and returns Issues with severity and suggested fixes
+- issue list in the panel (UX_SPEC §8)
+- fixing a single issue through plan → preview → apply, with re-check (fix verification)
+
+Success: "Check this model" → issues by severity; "Fix this one" → previewed fix, verified by re-check.
+
+---
+
+## Phase 9 — AI-Assisted Fixes
+
+Goal: "Fix everything that is safe to fix."
+
+Implement:
+
+- deterministic fix rules (issue category → fix tool, auto-fixable flag)
+- planning all auto-fixable issues as one plan; preview; apply; re-check; report fixed / still open
+- issues that need a decision (names, numbers, types) listed with suggestions and asked about
+
+---
+
+## Phase 10 — Agent Workflows
+
+Goal: high-level requests composed of detectors, fixes and existing workflows.
+
+Examples:
+
+- "Prepare this project for submission."
+- "Check this apartment and fix all issues you can."
+- "Create and document this floor."
+- "Apply our company BIM standards to this project."
+
+Implemented as fixed recipes (ADR-039) with checkpoints: inspect → plan → preview → apply → validate → report.
+
+---
+
+## Phase 11 — Advanced Layout Intelligence
 
 Goal: allow users to describe design intent.
 
@@ -200,7 +256,7 @@ System:
 
 ---
 
-## Phase 9 — Advanced Inputs
+## Phase 12 — Advanced Inputs
 
 Potential:
 
@@ -213,7 +269,7 @@ Not part of MVP.
 
 ---
 
-## Phase 10 — Cloud Platform
+## Phase 13 — Cloud Platform
 
 Potential:
 

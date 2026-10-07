@@ -21,6 +21,21 @@ Instead of manually:
 
 the assistant should understand the requested outcome and safely execute the required Revit operations.
 
+### Product direction: an AI BIM engineer inside Revit (ADR-040)
+
+The product is positioned as an **AI BIM engineer** that works inside Revit, not as a chatbot with Revit access. It has four
+fundamental capabilities:
+
+| Capability | Meaning |
+|---|---|
+| **Understand** | Know the project, active view and level, selection, rooms, walls, doors, windows, families, types, parameters, standards and their relationships, through task-specific context (never the whole model). |
+| **Check** | Analyse the model and detect issues (quality, standards, missing parameters, invalid relationships, documentation, geometry/model inconsistencies), and explain them in terms a non-technical Revit user understands. |
+| **Act** | Create, modify and, when explicitly authorised, delete elements; apply standards; fix detected issues; always through controlled tools, deterministic validation and Revit transactions. |
+| **Automate** | Run complete BIM workflows composed of deterministic tools, planned and previewed as one reviewed change. |
+
+The LLM is the reasoning and orchestration layer. Revit remains the source of truth, the tool layer remains the execution
+boundary, and deterministic validation remains the authority for correctness.
+
 ---
 
 ## 2. Target Users
@@ -88,6 +103,20 @@ Select → Ask → Understand → Plan → Preview → Apply → Validate
 
 ## 6. Product Modes
 
+Modes are capabilities of one assistant, not separate screens. The assistant infers the mode from the request; the UI may
+offer them as quick actions (UX_SPEC §8).
+
+| Mode | Capability | Example | Behaviour |
+|---|---|---|---|
+| Ask | Understand | "How many bedrooms are on this level?" | Read-only answer |
+| Analyze | Check | "Why is this room not calculating?" / "Check this model." | Read-only analysis; issues with explanations |
+| Fix | Check + Act | "Fix the room boundary." / "Fix everything that is safe to fix." | Analyse → propose fixes → preview → apply → re-check |
+| Create | Act | "Create a 4 × 3 m bedroom here." | Plan → preview → apply → validate |
+| Automate | Automate | "Prepare this floor for documentation." | Workflow → one plan → preview → apply → validate |
+| Standards | Check + Act | "Apply our company BIM standards." | Check against standards → propose fixes |
+
+The original modes below remain valid as examples.
+
 ### Assistant
 
 Read-only questions.
@@ -150,7 +179,11 @@ Example: "Prepare this floor plan for documentation."
 
 ## 7. Initial MVP
 
-MVP = roadmap Phases 0–3 (ADR-031). The MVP should support:
+The MVP boundary is redefined by ADR-042: the first usable product is
+**Select / Ask → Understand → Plan → Preview → Apply → Validate**, plus model checking with a unified issue list
+(Check) and fixing individual issues through the same plan → preview → apply flow. See ROADMAP for the order.
+
+Originally (ADR-031, superseded) the MVP was Phases 0–3. The MVP supports at least:
 
 ### Context
 
@@ -347,7 +380,13 @@ Examples:
 
 with natural language.
 
-Dimensions and sheets (Phase 4) and model checking (Phase 5) are success criteria for later phases, not the MVP.
+Also, under ADR-042:
+
+- "Check this model" → a prioritised list of issues, each explained in plain language with the affected elements.
+- "Fix this issue" → a previewed, validated fix, and the issue is confirmed as resolved by re-checking.
+
+Dimensions and sheets (Phase 4), "fix everything that is safe to fix" and complete workflows are success criteria for
+the phases after the MVP.
 
 ---
 
@@ -380,6 +419,8 @@ Do not implement initially:
 - full structural engineering automation
 - autonomous construction documentation
 - multi-agent architecture
+- agent frameworks, vector databases or other infrastructure added only because the product is called an "agent"
+- applying model changes without the plan → preview → apply flow (no unreviewed autonomous changes)
 
 ---
 
@@ -393,5 +434,10 @@ The eventual assistant should understand high-level requests such as:
 - "Find all rooms under 10m²."
 - "Move the kitchen wall by 40cm and update affected doors, windows and dimensions."
 - "Create a sheet set for this floor."
+- "Prepare this project for submission."
+- "Check this apartment and fix all issues you can."
+- "Create this apartment based on these requirements."
+- "Create and document this floor."
+- "Apply our company BIM standards to this project."
 
 The user should communicate outcomes rather than implementation details.
