@@ -503,6 +503,8 @@ public sealed class UiText
         ["Tool.CornerTooFar"] = "Țevile sunt prea departe de colțul lor (peste {0}).",
         ["Tool.CornerTooShort"] = "Una dintre țevi este prea scurtă.",
         ["Progress.connect_pipes_with_elbow"] = "Verific colțul țevilor…",
+        ["Progress.query_elements"] = "Interoghez modelul…",
+        ["Progress.check_pipe_systems"] = "Verific sistemele de țevi…",
         ["Tool.MoveDone"] = "Am mutat elementele ({0}) cu ({1:0}, {2:0}) mm",
         ["Tool.MoveZero"] = "Distanța de mutare este zero.",
         ["Tool.MoveTooFar"] = "Mutările sunt limitate la {0}.",

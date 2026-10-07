@@ -606,3 +606,21 @@ Decision: start MEP with `connect_pipes_with_elbow`, because the user's projects
 - Apply moves both ends to the corner and lets Revit insert the elbow from the pipe type's routing preferences
   (`NewElbowFitting`); the result is verified (both ends connected), otherwise the plan rolls back.
 - Straight joints (couplings/merge), reducers and tees are the next MEP steps.
+
+---
+
+## ADR-048 — Generic Query Tool and Pipe-System Check
+
+Status: Accepted (2026-10-08)
+
+Decision (from the capability research in `reports/`, not committed):
+
+- `query_elements`: one generic, read-only question tool. Category (+ level) + conditions (equals, notEquals, contains,
+  greaterThan, lessThan, isEmpty, isNotEmpty) + groupBy + sumField + limit. Fields are parameter names or
+  language-independent pseudo-fields (`@category`, `@family`, `@type`, `@level`, `@system`, `@diameter`, `@length`); numbers in
+  mm, m², degrees or m³. Filtering, grouping and sums run in the Revit-free `QueryEngine` (unit-tested). This lets the AI answer
+  many questions without a hand-written tool per question, with no generated code.
+- `check_pipe_systems`: read-only integrity report: open pipe ends, unconnected equipment piping connectors, pipes without a
+  system, piping systems Revit reports as not well connected; scope = elements, level or model.
+- **Pipe check** ribbon button: runs the check without AI on the selection (or the whole model), saves a Markdown report and can
+  select the problem elements. First of the AI-free buttons.

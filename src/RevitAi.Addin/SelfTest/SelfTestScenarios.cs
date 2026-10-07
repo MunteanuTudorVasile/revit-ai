@@ -110,6 +110,16 @@ internal sealed class SelfTestScenarios
         _run.Check("find_elements_missing_parameter", () =>
             _run.Read<QaResult>("find_elements_missing_parameter", new { category = Cat(BuiltInCategory.OST_Walls), parameterName = "Mark", limit = (long?)5 }));
         _run.Check("check_standards", () => _run.Read<StandardsReport>("check_standards", new { limit = (long?)5 }));
+        _run.Check("query_elements (walls grouped by type with total length)", () =>
+        {
+            QueryElementsResult result = _run.Read<QueryElementsResult>("query_elements", new
+            {
+                category = Cat(BuiltInCategory.OST_Walls), levelId = (long?)null, conditions = (object[]?)null,
+                groupBy = (string?)"@type", sumField = (string?)"@length", limit = (long?)5,
+            });
+            Assert(result.UnknownFields.Count == 0, $"unknown fields: {string.Join(", ", result.UnknownFields)}");
+            Assert(result.TotalCount == 0 || (result.Groups.Count > 0 && result.Total > 0), "walls found but no groups or total length");
+        });
     }
 
     private void Modeling()
@@ -429,6 +439,22 @@ internal sealed class SelfTestScenarios
         {
             (long main, long branch) = TwoPipes(new XYZ(0, 30_000, 3000), new XYZ(4000, 30_000, 3000), new XYZ(2000, 30_100, 3000), new XYZ(2000, 33_000, 3000));
             ExpectRefused(() => _run.Validate("connect_pipes_with_elbow", new { pipeId1 = (object)main, pipeId2 = (object)branch }));
+
+            PipeSystemsReport report = _run.Read<PipeSystemsReport>("check_pipe_systems",
+                new { elementIds = new[] { main, branch }, levelId = (long?)null, limit = (long?)50 });
+            Assert(report.OpenEndCount == 4, $"two loose pipes should have 4 open ends, found {report.OpenEndCount}");
+
+            QueryElementsResult query = _run.Read<QueryElementsResult>("query_elements", new
+            {
+                category = Cat(BuiltInCategory.OST_PipeCurves), levelId = (long?)null,
+                conditions = new object[]
+                {
+                    new { field = "@length", op = "greaterThan", value = (object)2899.5 },
+                    new { field = "@length", op = "lessThan", value = (object)2900.5 },
+                },
+                groupBy = (string?)"@system", sumField = (string?)"@length", limit = (long?)200,
+            });
+            Assert(query.Elements.Any(e => e.Id == branch), "the 2900 mm test pipe was not found by its @length");
         });
     }
 

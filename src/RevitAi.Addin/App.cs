@@ -159,6 +159,8 @@ public sealed class App : IExternalApplication
         registry.Register(new GetWorkflowTool());
         registry.Register(new ReportUnavailableRequestTool(unmetRequests));
         registry.Register(new FindGridLinesTool(dispatcher));
+        registry.Register(new QueryElementsTool(dispatcher));
+        registry.Register(new CheckPipeSystemsTool(dispatcher));
 
         registry.Register(new CreateWallTool(dispatcher, text));
         registry.Register(new ModifyWallTool(dispatcher, text));
@@ -202,6 +204,17 @@ public sealed class App : IExternalApplication
             LargeImage = LoadIcon("assistant-32.png"),
         };
         panel.AddItem(button);
+
+        panel.AddItem(new PushButtonData(
+            name: "RevitAi.PipeCheck",
+            text: "Pipe check",
+            assemblyName: typeof(App).Assembly.Location,
+            className: typeof(PipeCheckCommand).FullName)
+        {
+            ToolTip = "Check pipe systems (open ends, pipes without a system, systems not well connected) in the selection or the whole model. Read-only.",
+            Image = LoadIcon("assistant-16.png"),
+            LargeImage = LoadIcon("assistant-32.png"),
+        });
 
         panel.AddItem(new PushButtonData(
             name: "RevitAi.SelfTest",

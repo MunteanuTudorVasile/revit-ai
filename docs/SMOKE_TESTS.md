@@ -207,6 +207,15 @@ Put this in `%APPDATA%\RevitAi\standards.json` (adapt names to your project):
 | P.2 | Select two parallel pipes, or pipes at different heights, and ask the same. | Clear refusal explaining why (parallel / don't meet). Nothing changes. |
 | P.3 | Select a pipe and another pipe ending at its middle. | Refused: needs a tee, not available yet. |
 
+## Query and pipe check
+
+| # | Steps | Expected |
+|---|---|---|
+| Q.1 | Ask "What is the total pipe length per system on this level?" | One query_elements call (log); answer lists systems with lengths. |
+| Q.2 | Ask "Which pipe fittings have no Mark?" | Count and examples; offers to select them. |
+| Q.3 | Click **Add-Ins → Revit AI → Pipe check** with nothing selected. | Summary of open ends, pipes without system, systems not well connected; "Select the problem elements" selects them; the report opens. |
+| Q.4 | Select part of a system and click **Pipe check**. | Only the selection is checked. |
+
 ## Results
 
 | Date | Revit version/build | Tester | Result | Notes |

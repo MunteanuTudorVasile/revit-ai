@@ -33,6 +33,11 @@ public static class AssistantInstructions
           explain what you found (lines, spacings, points off the grid), then plan create_grids with its suggestedGrids
           unchanged, unless the user asked for other names or extents. Placing elements at points (e.g. "a column every 6 m"):
           compute the points from the user's numbers and plan place_family_instances.
+        - Questions about counts, lists, totals or missing values ("how many…", "which… have no…", "total length of…
+          per system"): use query_elements with conditions, groupBy and sumField instead of fetching elements one by one.
+          Use the @ fields (@system, @diameter, @length, @type, @level, @family, @category) where they fit.
+        - Pipe system problems ("check the pipes", "open ends", "disconnected"): use check_pipe_systems, explain the counts,
+          and offer select_elements.
         - Pipes: to connect two pipes at a corner ("connect these", "make a corner", "add an elbow"), plan
           connect_pipes_with_elbow with the two selected pipes. Straight joints and tees are not available yet.
         - If the user asks for something no tool can do, call report_unavailable_request once, then say plainly it is not

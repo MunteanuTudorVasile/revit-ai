@@ -105,6 +105,32 @@ public sealed record GridLinesResult(
     IReadOnlyList<string> ExistingGridNames,
     IReadOnlyList<Geometry.SuggestedGrid> SuggestedGrids);
 
+public sealed record QueryElementsResult(
+    string Category,
+    int TotalCount,
+    string? GroupBy,
+    IReadOnlyList<Query.QueryGroup> Groups,
+    string? SumField,
+    double? Total,
+    IReadOnlyList<ElementSummary> Elements,
+    bool Truncated,
+    IReadOnlyList<string> UnknownFields);
+
+public sealed record PipeIssue(ElementSummary Element, PointMm Location);
+
+public sealed record SystemIssue(long Id, string Name);
+
+public sealed record PipeSystemsReport(
+    int ElementsChecked,
+    int OpenEndCount,
+    IReadOnlyList<PipeIssue> OpenEnds,
+    int UnconnectedEquipmentCount,
+    IReadOnlyList<PipeIssue> UnconnectedEquipment,
+    int PipesWithoutSystemCount,
+    IReadOnlyList<ElementSummary> PipesWithoutSystem,
+    IReadOnlyList<SystemIssue> SystemsNotWellConnected,
+    bool Truncated);
+
 public sealed record ParametersResult(
     long ElementId,
     IReadOnlyList<ElementParameter> Parameters,
