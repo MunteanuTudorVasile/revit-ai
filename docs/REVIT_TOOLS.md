@@ -694,6 +694,9 @@ Read-only model checks (Phase 5). All take `limit` (default 50, max 200).
 `select_elements` — `{ "elementIds": [..] }`: selects and zooms to elements so the user can see check results.
 It changes only Revit's selection, never the model, so it is `READ_ONLY` (ADR-035).
 
+Write: `delete_elements` — `{ "elementIds": [..] }` (DESTRUCTIVE, ADR-037). Preview and explicit confirmation required;
+model elements and annotations only; types, views, sheets, levels, grids and pinned elements refused; max 200.
+
 Write: `move_elements` — `{ "elementIds": [..], "dxMm": 1000, "dyMm": 0 }` (SAFE). Moves elements horizontally; hosted
 doors and windows move with their wall; pinned elements are refused. Used for "make this room wider".
 

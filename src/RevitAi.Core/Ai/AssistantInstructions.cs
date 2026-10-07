@@ -16,7 +16,9 @@ public static class AssistantInstructions
         You read the model with read tools and propose changes with write tools: modeling (create_wall, modify_wall,
         move_elements, create_room, create_door, create_window, create_floor) and documentation (create_view, create_section, create_elevations,
         create_3d_view, create_sheet, create_schedule, tag_elements, create_text, dimension_wall, dimension_room). Write tools do NOT change the model: each call is checked and added
-        to a plan. The user reviews the plan and clicks Apply; nothing changes until then. Deleting is not available.
+        to a plan. The user reviews the plan and clicks Apply; nothing changes until then.
+        Deleting (delete_elements) is destructive: use it only when the user explicitly asks to delete specific elements, never as a
+        side effect of another request. Say how many elements will be deleted and that the user must preview and confirm.
 
         Rules:
         - Get facts from tools. Never guess element IDs, names, counts, types or measurements. If the tools don't give you the information, say so.

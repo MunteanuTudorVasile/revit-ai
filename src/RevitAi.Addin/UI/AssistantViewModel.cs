@@ -48,6 +48,7 @@ public sealed class AssistantViewModel : INotifyPropertyChanged
     private CancellationTokenSource? _cancellation;
     private PendingPlan? _plan;
     private bool _previewSucceeded;
+    private bool _deletionConfirmed;
     private string _previewText = string.Empty;
 
     public AssistantViewModel(
@@ -133,7 +134,27 @@ public sealed class AssistantViewModel : INotifyPropertyChanged
 
     public bool HasPreviewText => _previewText.Length > 0;
 
-    private bool CanApply => _plan is not null && !IsBusy && (!_plan.RequiresPreview || _previewSucceeded);
+    /// <summary>The plan deletes elements: preview and explicit confirmation are required (UX risk level 4, ADR-037).</summary>
+    public bool IsDestructivePlan => _plan?.RequiresConfirmation == true;
+
+    /// <summary>The confirmation checkbox only becomes available after a successful preview has shown the full impact.</summary>
+    public bool PreviewSucceeded => _previewSucceeded;
+
+    public bool DeletionConfirmed
+    {
+        get => _deletionConfirmed;
+        set
+        {
+            Set(ref _deletionConfirmed, value && _previewSucceeded);
+            ApplyCommand.RaiseCanExecuteChanged();
+        }
+    }
+
+    private bool CanApply =>
+        _plan is not null
+        && !IsBusy
+        && (!_plan.RequiresPreview || _previewSucceeded)
+        && (!_plan.RequiresConfirmation || _deletionConfirmed);
 
     public string Input
     {
@@ -372,6 +393,7 @@ public sealed class AssistantViewModel : INotifyPropertyChanged
     {
         _plan = plan;
         _previewSucceeded = false;
+        _deletionConfirmed = false;
         PreviewText = string.Empty;
         PlanItems.Clear();
         foreach (PlannedOperation operation in plan.Operations)
@@ -386,6 +408,7 @@ public sealed class AssistantViewModel : INotifyPropertyChanged
     {
         _plan = null;
         _previewSucceeded = false;
+        _deletionConfirmed = false;
         PreviewText = string.Empty;
         PlanItems.Clear();
         OnPlanChanged();
@@ -408,8 +431,9 @@ public sealed class AssistantViewModel : INotifyPropertyChanged
             if (_plan == plan)
             {
                 _previewSucceeded = result.Succeeded;
+                _deletionConfirmed = false; // confirm again after every preview
                 PreviewText = DescribePreview(result);
-                RaisePlanCommandsChanged();
+                OnPlanChanged();
             }
         }
         catch (Exception ex)
@@ -445,6 +469,8 @@ public sealed class AssistantViewModel : INotifyPropertyChanged
                       $"{result.Steps.Count(s => s.Succeeded)}/{plan.Operations.Count} step(s) succeeded.");
 
             _plan = null;
+            _previewSucceeded = false;
+            _deletionConfirmed = false;
             PlanItems.Clear();
             PreviewText = string.Empty;
             OnPlanChanged();
@@ -535,6 +561,9 @@ public sealed class AssistantViewModel : INotifyPropertyChanged
     {
         OnPropertyChanged(nameof(HasPlan));
         OnPropertyChanged(nameof(PlanHeader));
+        OnPropertyChanged(nameof(IsDestructivePlan));
+        OnPropertyChanged(nameof(PreviewSucceeded));
+        OnPropertyChanged(nameof(DeletionConfirmed));
         RaisePlanCommandsChanged();
     }
 

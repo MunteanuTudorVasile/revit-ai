@@ -118,7 +118,12 @@ Use a test project you can throw away. After each step, check Revit's undo list 
 | 5.6 | Ask "Which doors have no Mark?" | Lists doors with an empty Mark. |
 | 5.7 | Select a rectangular room; ask "Make this room 1 m wider." | Plan: move_elements on one bounding wall by 1000 mm perpendicular to it; the answer says which wall. Preview, then Apply: room area grows by ~1 m × depth; the wall's doors/windows moved with it. One undo entry. |
 | 5.8 | Pin a wall (Modify → Pin) and ask to move it. | Refused: "Element … is pinned". |
-| 5.9 | Ask "Delete the duplicate doors." | Says deleting is not available yet; offers to select them instead. |
+| 5.9 | After 5.3, ask "Delete the duplicate door." | Plan card with a red warning; **Apply disabled**. The confirmation checkbox is disabled until Preview. |
+| 5.10 | Click Preview. | "Deleted 1 element(s)…" (rolled back); the door still exists. Checkbox becomes available; Apply still disabled until ticked. |
+| 5.11 | Tick the checkbox, click Apply. | Duplicate removed; one undo entry; history.jsonl lists the deleted ID. Ctrl+Z restores it. |
+| 5.12 | Ask "Delete this wall" for a wall with a door; Preview. | Preview reports 2 elements deleted, including 1 dependent (the door). |
+| 5.13 | Ask to delete a level, a view or a pinned wall. | Refused before any plan, with the reason. |
+| 5.14 | Ask "Make this room wider" and check the plan. | No delete_elements in the plan (deletes never appear as a side effect). |
 
 ## Results
 

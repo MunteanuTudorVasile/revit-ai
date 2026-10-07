@@ -434,6 +434,20 @@ Decision: `select_elements` (select and zoom to elements) is a read tool. It run
 
 ## ADR-036 — Model Checks Are Read-Only; No Deletes Yet
 
-Status: Accepted (2026-10-07)
+Status: Superseded by ADR-037 for deleting (checks remain read-only)
 
 Decision: Phase 5 checks only report problems. Fixes use existing write tools through plan → preview → apply. Removing duplicates or orphaned elements needs `delete_element`, which is `DESTRUCTIVE`. It stays unavailable until the explicit-confirmation flow (UX risk level 4) is built, and the tool registry rejects destructive tools until then.
+
+---
+
+## ADR-037 — Destructive Actions: Preview, Then Explicit Confirmation
+
+Status: Accepted (2026-10-07)
+
+Decision: `delete_elements` is the first `DESTRUCTIVE` tool (UX risk level 4).
+
+- A plan containing it requires a successful **Preview** first. The preview performs the deletion and rolls it back, so it reports the full impact including dependent elements (e.g. doors in a deleted wall).
+- After the preview, the user must tick an explicit confirmation ("I have checked the preview and want to delete these elements"). The tick resets after every preview and on every new plan. Apply stays disabled until then.
+- Only model elements and annotations can be deleted, at most 200 per plan. Element types, views, sheets, levels, grids and pinned elements are refused.
+- The AI may plan a deletion only when the user explicitly asks to delete; never as a side effect.
+- The deletion is still one undo entry (Ctrl+Z), and the history records every deleted ID.

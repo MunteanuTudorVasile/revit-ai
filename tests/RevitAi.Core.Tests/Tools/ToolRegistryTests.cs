@@ -29,6 +29,7 @@ public class ToolRegistryTests
     [Theory]
     [InlineData(RiskLevel.SafeModification)]
     [InlineData(RiskLevel.LargeModification)]
+    [InlineData(RiskLevel.Destructive)]
     public void Accepts_write_tools(RiskLevel risk)
     {
         var registry = new ToolRegistry();
@@ -38,12 +39,10 @@ public class ToolRegistryTests
         Assert.True(registry.TryGet("create_thing", out _));
     }
 
-    [Theory]
-    [InlineData(RiskLevel.ReadOnly)]
-    [InlineData(RiskLevel.Destructive)]
-    public void Rejects_write_tools_that_are_read_only_or_destructive(RiskLevel risk)
+    [Fact]
+    public void Rejects_write_tools_that_are_read_only()
     {
-        Assert.Throws<ArgumentException>(() => new ToolRegistry().Register(new FakeWriteTool(risk: risk)));
+        Assert.Throws<ArgumentException>(() => new ToolRegistry().Register(new FakeWriteTool(risk: RiskLevel.ReadOnly)));
     }
 
     [Fact]

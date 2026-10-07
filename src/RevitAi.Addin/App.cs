@@ -147,6 +147,7 @@ public sealed class App : IExternalApplication
         registry.Register(new CreateWindowTool(dispatcher, text));
         registry.Register(new CreateFloorTool(dispatcher, text));
         registry.Register(new MoveElementsTool(dispatcher, text));
+        registry.Register(new DeleteElementsTool(dispatcher, text));
 
         registry.Register(new CreateViewTool(dispatcher, text));
         registry.Register(new CreateSheetTool(dispatcher, text));

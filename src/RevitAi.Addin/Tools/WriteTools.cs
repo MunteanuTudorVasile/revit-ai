@@ -542,3 +542,83 @@ public sealed class MoveElementsTool(RevitDispatcher dispatcher, TextSource text
         return element.Pinned ? throw new ToolException(T.Format("Tool.Pinned", id)) : element;
     }
 }
+
+public sealed class DeleteElementsTool(RevitDispatcher dispatcher, TextSource text) : RevitWriteTool(dispatcher, text)
+{
+    private const int MaxElements = 200;
+    private const int MaxListed = 5;
+
+    public override string Name => "delete_elements";
+
+    public override string Description =>
+        "Proposes deleting model elements or annotations (DESTRUCTIVE). Only use when the user explicitly asks to delete. " +
+        "Revit also deletes dependent elements (e.g. doors in a deleted wall); the user must preview the plan and explicitly confirm " +
+        $"before Apply. Types, views, sheets, levels, grids and pinned elements are refused. At most {MaxElements} elements.";
+
+    public override string ProgressLabel => "Checking the deletion…";
+
+    public override RiskLevel Risk => RiskLevel.Destructive;
+
+    protected override string SchemaJson => """
+        {
+          "type": "object",
+          "properties": {
+            "elementIds": { "type": "array", "items": { "type": ["integer", "string"] }, "description": "Elements to delete, or $opN.elementId references." }
+          },
+          "required": ["elementIds"],
+          "additionalProperties": false
+        }
+        """;
+
+    protected override string Validate(Document document, JsonElement arguments)
+    {
+        List<JsonElement> ids = Ids(arguments);
+        var described = new List<string>();
+        foreach (JsonElement id in ids)
+        {
+            if (id.ValueKind == JsonValueKind.Number)
+            {
+                Element element = Deletable(document, id.GetInt64());
+                described.Add($"{element.Category?.Name} {element.Id.Value}");
+            }
+            else
+            {
+                described.Add(id.GetString()!);
+            }
+        }
+
+        string list = string.Join(", ", described.Take(MaxListed)) + (described.Count > MaxListed ? ", …" : "");
+        return T.Format("Tool.DeleteSummary", ids.Count, list);
+    }
+
+    public override OperationResult Apply(Document document, JsonElement arguments)
+    {
+        List<ElementId> requested = Ids(arguments).Select(id => Deletable(document, id.GetInt64()).Id).Distinct().ToList();
+        List<long> deleted = document.Delete(requested).Select(id => id.Value).ToList();
+        return new OperationResult(null, T.Format("Tool.DeleteDone", deleted.Count, Math.Max(0, deleted.Count - requested.Count)), deleted);
+    }
+
+    private List<JsonElement> Ids(JsonElement arguments)
+    {
+        List<JsonElement> ids = arguments.GetProperty("elementIds").EnumerateArray().ToList();
+        return ids.Count == 0 ? throw new ToolException(T["Tool.MoveNeedsElements"])
+            : ids.Count > MaxElements ? throw new ToolException(T.Format("Tool.DeleteTooMany", MaxElements))
+            : ids;
+    }
+
+    /// <summary>Only model elements and annotations; never types, views, sheets, levels, grids or pinned elements.</summary>
+    private Element Deletable(Document document, long id)
+    {
+        Element element = RevitRead.RequireElement(document, id);
+        if (element.Pinned)
+        {
+            throw new ToolException(T.Format("Tool.Pinned", id));
+        }
+
+        bool allowed = element is not (ElementType or View or Level or Grid)
+                       && element.Category is { } category
+                       && category.CategoryType is CategoryType.Model or CategoryType.Annotation
+                       && category.Id.Value is not ((long)BuiltInCategory.OST_Levels or (long)BuiltInCategory.OST_Grids);
+        return allowed ? element : throw new ToolException(T.Format("Tool.DeleteNotAllowed", id, element.Category?.Name ?? element.GetType().Name));
+    }
+}

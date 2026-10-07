@@ -49,6 +49,26 @@ public class PendingPlanTests
     }
 
     [Fact]
+    public void Destructive_plan_requires_preview_and_confirmation()
+    {
+        var plan = new PendingPlan("delete the duplicates");
+        plan.Add("delete_elements", "{}", "Delete 2 elements", RiskLevel.Destructive);
+
+        Assert.Equal(RiskLevel.Destructive, plan.Risk);
+        Assert.True(plan.RequiresPreview);
+        Assert.True(plan.RequiresConfirmation);
+    }
+
+    [Fact]
+    public void Non_destructive_plans_need_no_confirmation()
+    {
+        var plan = new PendingPlan("request");
+        plan.Add("create_level", "{}", "Level", RiskLevel.LargeModification);
+
+        Assert.False(plan.RequiresConfirmation);
+    }
+
+    [Fact]
     public void Highest_operation_risk_wins()
     {
         var plan = new PendingPlan("request");

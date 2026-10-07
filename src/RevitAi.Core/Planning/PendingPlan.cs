@@ -43,8 +43,11 @@ public sealed class PendingPlan
         }
     }
 
-    /// <summary>Large plans must be previewed before Apply is enabled (UX risk level 3).</summary>
+    /// <summary>Large and destructive plans must be previewed before Apply is enabled (UX risk levels 3 and 4).</summary>
     public bool RequiresPreview => Risk >= RiskLevel.LargeModification;
+
+    /// <summary>Destructive plans also need the user's explicit confirmation after the preview (UX risk level 4, ADR-037).</summary>
+    public bool RequiresConfirmation => Risk == RiskLevel.Destructive;
 
     public PlannedOperation Add(string toolName, string argumentsJson, string summary, RiskLevel risk)
     {

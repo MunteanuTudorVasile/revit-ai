@@ -247,6 +247,12 @@ public sealed class UiText
         ["Tool.MoveTooFar"] = "Moves are limited to {0}.",
         ["Tool.Pinned"] = "Element {0} is pinned; unpin it in Revit first.",
         ["Tool.MoveNeedsElements"] = "Give at least one element.",
+        ["Tool.DeleteSummary"] = "Delete {0} element(s): {1}",
+        ["Tool.DeleteDone"] = "Deleted {0} element(s), including {1} dependent element(s)",
+        ["Tool.DeleteNotAllowed"] = "Element {0} ({1}) can't be deleted by Revit AI; only model elements and annotations can.",
+        ["Tool.DeleteTooMany"] = "At most {0} elements can be deleted at once.",
+        ["PlanDestructive"] = "⚠ This plan deletes elements. Preview it to see everything that will be removed, including dependent elements such as doors in a deleted wall.",
+        ["ConfirmDelete"] = "I have checked the preview and want to delete these elements",
     };
 
 
@@ -437,6 +443,13 @@ public sealed class UiText
         ["Tool.MoveTooFar"] = "Mutările sunt limitate la {0}.",
         ["Tool.Pinned"] = "Elementul {0} este fixat (pinned); anulează fixarea în Revit mai întâi.",
         ["Tool.MoveNeedsElements"] = "Indică cel puțin un element.",
+        ["Tool.DeleteSummary"] = "Șterge elementele ({0}): {1}",
+        ["Tool.DeleteDone"] = "Am șters elementele ({0}), inclusiv elemente dependente: {1}",
+        ["Tool.DeleteNotAllowed"] = "Elementul {0} ({1}) nu poate fi șters de Revit AI; se pot șterge doar elemente de model și adnotări.",
+        ["Tool.DeleteTooMany"] = "Se pot șterge cel mult {0} elemente odată.",
+        ["PlanDestructive"] = "⚠ Acest plan șterge elemente. Previzualizează-l ca să vezi tot ce va fi eliminat, inclusiv elementele dependente, de exemplu ușile dintr-un perete șters.",
+        ["ConfirmDelete"] = "Am verificat previzualizarea și vreau să șterg aceste elemente",
+        ["Progress.delete_elements"] = "Verific ștergerea…",
         ["Progress.move_elements"] = "Verific mutarea…",
         ["Progress.select_elements"] = "Selectez elementele în Revit…",
         ["Progress.find_rooms_without_tags"] = "Caut camerele fără etichetă…",
