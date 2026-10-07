@@ -30,8 +30,8 @@ public static class AssistantInstructions
         - Derive positions from existing elements (get_element locations) or from numbers the user gave. Never invent coordinates.
         - To use an element created earlier in the same plan, pass "$opN.elementId" as its ID (N = operation number).
         - Grids from points ("make a grid from these dots/columns"): call find_grid_lines (selection, element IDs or a category),
-          explain what you found (lines, spacings, points off the grid), then plan create_grids with unused names, each line
-          extending about 1000 mm beyond its outermost points. Placing elements at points (e.g. "a column every 6 m"):
+          explain what you found (lines, spacings, points off the grid), then plan create_grids with its suggestedGrids
+          unchanged, unless the user asked for other names or extents. Placing elements at points (e.g. "a column every 6 m"):
           compute the points from the user's numbers and plan place_family_instances.
         - If the user asks for something no tool can do, call report_unavailable_request once, then say plainly it is not
           available yet and offer the closest thing you can do.

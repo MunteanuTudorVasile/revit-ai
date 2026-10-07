@@ -739,7 +739,7 @@ by category where a mapping exists.
 
 | Tool | Kind | Input | Notes |
 |---|---|---|---|
-| `find_grid_lines` | read | `elementIds` / `category` (+`levelId`) / both null = selection; `toleranceMm` (100); `minPointsPerLine` (2) | Rows and columns of point-based elements, spacings, elements off the grid, existing grid names. Axis-aligned to model X/Y. |
+| `find_grid_lines` | read | `elementIds` / `category` (+`levelId`) / both null = selection; `toleranceMm` (100); `minPointsPerLine` (2) | Rows and columns of point-based elements, spacings, elements off the grid, existing grid names, and `suggestedGrids` (deterministic `GridSuggestion`: vertical 1, 2, 3…, horizontal A, B, C… without I/O, unused names, equal extents + 1000 mm). Axis-aligned to model X/Y. |
 | `create_grids` | write, LARGE | `grids: [{ name, start, end }]` | Unique names (new and existing), length ≥ 100 mm, at most 100. |
 | `place_family_instances` | write, LARGE | `familyTypeId`, `levelId`, `points`, `rotationDegrees` | Level-based families only; structural columns placed as columns; at most 500. |
 | `report_unavailable_request` | read | `request`, `missingCapability` | Appends to the local unmet-requests file (ADR-043). |

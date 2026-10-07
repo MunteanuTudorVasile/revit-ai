@@ -2,7 +2,7 @@
 
 AI assistant add-in for Autodesk Revit 2025 and 2026. Start with [CLAUDE.md](CLAUDE.md) and [docs/](docs/); decisions are in [docs/DECISIONS.md](docs/DECISIONS.md).
 
-Status: **Phases 0–7 implemented** (foundation, read-only AI, modeling, context, documentation, model QA, company standards, workflows), plus deleting with confirmation. Nothing has been run inside Revit yet: next step is the smoke tests. Answers questions; proposes walls, rooms, doors, windows and floors using the project's standard types; creates views, sheets, schedules, tags, text and wall dimensions. The model changes only when the user clicks Apply. Panel in English or Romanian.
+Status: **Phases 0–7 implemented, plus grids from points, placing elements at points and an unmet-request log** (foundation, read-only AI, modeling, context, documentation, model QA, company standards, workflows), plus deleting with confirmation. Nothing has been run inside Revit yet: next step is the smoke tests. Answers questions; proposes walls, rooms, doors, windows and floors using the project's standard types; creates views, sheets, schedules, tags, text and wall dimensions. The model changes only when the user clicks Apply. Panel in English or Romanian.
 
 ## Layout
 

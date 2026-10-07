@@ -102,7 +102,8 @@ public sealed record GridLinesResult(
     IReadOnlyList<double> VerticalSpacingsMm,
     IReadOnlyList<double> HorizontalSpacingsMm,
     IReadOnlyList<long> OffGridElementIds,
-    IReadOnlyList<string> ExistingGridNames);
+    IReadOnlyList<string> ExistingGridNames,
+    IReadOnlyList<Geometry.SuggestedGrid> SuggestedGrids);
 
 public sealed record ParametersResult(
     long ElementId,

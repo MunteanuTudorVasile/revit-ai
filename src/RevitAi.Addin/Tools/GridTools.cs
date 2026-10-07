@@ -21,8 +21,9 @@ public sealed class FindGridLinesTool(RevitDispatcher dispatcher) : RevitReadToo
     public override string Description =>
         "Finds rows and columns in the positions of point-based elements (dots, columns, generic models…) and suggests " +
         "grid lines: vertical lines (constant X) and horizontal lines (constant Y), with spacings, elements that are not on " +
-        "both a row and a column, and the names of existing grids. Source: elementIds, or a category, or (both null) the " +
-        "current selection. Axis-aligned to model X/Y.";
+        "both a row and a column, and the names of existing grids. suggestedGrids are ready for create_grids: vertical lines " +
+        "numbered 1, 2, 3…, horizontal lines lettered A, B, C… (no I/O), unused names, 1000 mm past the outermost points. " +
+        "Source: elementIds, or a category, or (both null) the current selection. Axis-aligned to model X/Y.";
 
     public override string ProgressLabel => "Looking for rows and columns of points…";
 
@@ -57,6 +58,7 @@ public sealed class FindGridLinesTool(RevitDispatcher dispatcher) : RevitReadToo
         double tolerance = Math.Clamp(WriteArgs.OptionalNumber(arguments, "toleranceMm") ?? DefaultToleranceMm, 1, 10_000);
         int minPoints = (int)Math.Clamp(RevitRead.OptionalLong(arguments, "minPointsPerLine") ?? 2, 2, 1000);
         GridDetectionResult result = GridDetection.Detect(points, tolerance, minPoints);
+        List<string> existingNames = new FilteredElementCollector(document).OfClass(typeof(Grid)).Select(g => g.Name).OrderBy(n => n).ToList();
 
         return new GridLinesResult(
             points.Count,
@@ -66,7 +68,8 @@ public sealed class FindGridLinesTool(RevitDispatcher dispatcher) : RevitReadToo
             result.VerticalSpacingsMm,
             result.HorizontalSpacingsMm,
             result.OffGridPointIndexes.Select(i => located[i].Element.Id.Value).ToList(),
-            new FilteredElementCollector(document).OfClass(typeof(Grid)).Select(g => g.Name).OrderBy(n => n).ToList());
+            existingNames,
+            GridSuggestion.Suggest(result, existingNames));
     }
 
     private static List<Element> Source(UIDocument uiDocument, JsonElement arguments)
