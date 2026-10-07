@@ -558,3 +558,19 @@ Status: Accepted (2026-10-07)
 Decision: new capabilities are preferably built as a Revit-free analysis function in Core (unit-tested) plus general write
 tools, rather than one special-purpose tool per request. First instances: `GridDetection` + `find_grid_lines` (read),
 `create_grids` and `place_family_instances` (write, LARGE because they create many elements).
+
+---
+
+## ADR-045 — Automatic In-Revit Self-Test
+
+Status: Accepted (2026-10-08)
+
+Decision: a **Self-test** ribbon command runs about 50 scripted checks inside Revit against the real tools:
+
+- Tools are called through the same `Validate` / `Execute` code as the AI path, with arguments checked against each tool's schema; plans run through the real `PlanExecutor` (transactions, failure handling, references).
+- Test content is built about 300 m from the internal origin, and the whole run happens in one transaction group that is **always rolled back**. The project is unchanged.
+- Category and parameter names come from Revit, so the checks work in non-English Revit. Checks that need content the project lacks (door, room tag, title block, level-based family, template) are reported as skipped, not failed.
+- A Markdown report (`%LOCALAPPDATA%\RevitAi\self-test-<date>.md`) lists failures first.
+- Not covered, so tested manually: the panel UI, OpenAI, the dispatcher's threading, and Ctrl+Z after a real Apply.
+
+Reason: manual smoke testing does not scale with ~50 tools. One click plus one file makes every rebuild verifiable.

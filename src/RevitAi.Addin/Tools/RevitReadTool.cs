@@ -37,6 +37,9 @@ public abstract class RevitReadTool : IReadTool
 
     /// <summary>Runs inside Revit's API context. Must not modify the model.</summary>
     protected abstract object Execute(UIApplication app, JsonElement arguments);
+
+    /// <summary>For the in-Revit self-test, which already runs in API context and bypasses the dispatcher.</summary>
+    internal object ExecuteInContext(UIApplication app, JsonElement arguments) => Execute(app, arguments);
 }
 
 /// <summary>Shared Revit → result-contract conversions. Units per ADR-026: mm, m².</summary>

@@ -175,7 +175,8 @@ Write-Host "   Installed for Revit: $($RevitYears -join ', ')"
 Write-Host ''
 Write-Host '   Next:'
 Write-Host '   1. Start Revit and choose "Always Load" when asked about Revit AI.'
-Write-Host '   2. Open Add-Ins > Revit AI > Assistant.'
-Write-Host '   3. Run the checks in docs\SMOKE_TESTS.md for each Revit year, starting with Phase 0.'
+Write-Host '   2. Open a project (a copy is best) and click Add-Ins > Revit AI > Self-test.'
+Write-Host "      It runs the automatic checks, undoes everything and saves a report in $env:LOCALAPPDATA\RevitAi\"
+Write-Host '   3. Then Add-Ins > Revit AI > Assistant and the short manual list at the top of docs\SMOKE_TESTS.md.'
 Write-Host "      Log: $env:LOCALAPPDATA\RevitAi\logs\"
 Write-Host '   After changing code on the Mac, close Revit and run this script again.'

@@ -56,6 +56,9 @@ public abstract class RevitWriteTool : IWriteTool
     /// </summary>
     protected abstract string Validate(Document document, JsonElement arguments);
 
+    /// <summary>For the in-Revit self-test, which already runs in API context and bypasses the dispatcher.</summary>
+    internal string ValidateInContext(Document document, JsonElement arguments) => Validate(document, arguments);
+
     /// <summary>
     /// Runs inside an open transaction with all plan references already resolved to IDs.
     /// Throws <see cref="ToolException"/> (or lets Revit throw) to fail the step; the plan is then rolled back.

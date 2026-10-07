@@ -1,6 +1,7 @@
 namespace RevitAi.Core.Planning;
 
-public sealed record StepResult(int Number, string ToolName, bool Succeeded, string Outcome, IReadOnlyList<string> Warnings);
+/// <param name="ElementId">The element the step created or changed, when it has a single main element.</param>
+public sealed record StepResult(int Number, string ToolName, bool Succeeded, string Outcome, IReadOnlyList<string> Warnings, long? ElementId = null);
 
 /// <summary>
 /// Outcome of previewing or applying a plan. When <see cref="Succeeded"/> is false, nothing was changed:

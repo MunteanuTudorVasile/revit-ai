@@ -25,6 +25,8 @@ dotnet build src/RevitAi.Addin -p:RevitVersion=2026
 dotnet build src/RevitAi.Addin -p:RevitVersion=2025
 ```
 
+To test: open a project and click **Add-Ins → Revit AI → Self-test** (automatic checks, everything undone, report saved), then the short manual list in `docs/SMOKE_TESTS.md`.
+
 A Debug build on Windows installs itself into `%APPDATA%\Autodesk\Revit\Addins\<year>\` (`RevitAi.addin` plus a `RevitAi\` folder). Start Revit, accept the add-in security prompt, and use **Add-Ins → Revit AI → Assistant**.
 
 To uninstall, delete `RevitAi.addin` and the `RevitAi\` folder from that directory.

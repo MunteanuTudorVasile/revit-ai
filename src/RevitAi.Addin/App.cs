@@ -9,6 +9,7 @@ using RevitAi.Addin.Context;
 using RevitAi.Addin.Dispatch;
 using RevitAi.Addin.Infrastructure;
 using RevitAi.Addin.Planning;
+using RevitAi.Addin.SelfTest;
 using RevitAi.Addin.Tools;
 using RevitAi.Addin.UI;
 using RevitAi.Core.Ai;
@@ -21,6 +22,9 @@ using RevitAi.Core.Tools;
 using RevitAi.Core.Workflows;
 
 namespace RevitAi.Addin;
+
+/// <summary>Services shared with ribbon commands such as the self-test.</summary>
+internal sealed record AddinServices(ToolRegistry Registry, PlanExecutor Executor, FileLog Log, string LocalDataDir);
 
 public sealed class App : IExternalApplication
 {
@@ -36,6 +40,8 @@ public sealed class App : IExternalApplication
 
     // One HttpClient for the add-in's lifetime; the timeout is set from settings in OnStartup.
     private static readonly HttpClient Http = new();
+
+    internal static AddinServices? Services { get; private set; }
 
     private FileLog? _log;
     private AssistantViewModel? _viewModel;
@@ -69,8 +75,10 @@ public sealed class App : IExternalApplication
             ToolRegistry registry = CreateToolRegistry(dispatcher, standardsPath, text, unmetRequests);
             var orchestrator = new Orchestrator(ai, registry, _log, settings.MaxAiSteps);
             var history = new ActionHistory(Path.Combine(LocalDataDir, "history.jsonl"), _log);
+            var executor = new PlanExecutor(registry, text);
+            Services = new AddinServices(registry, executor, _log, LocalDataDir);
             _viewModel = new AssistantViewModel(
-                dispatcher, orchestrator, new PlanExecutor(registry, text), history, keyStore, text, settings, settingsPath, _log);
+                dispatcher, orchestrator, executor, history, keyStore, text, settings, settingsPath, _log);
 
             // Dockable panes can only be registered during startup.
             application.RegisterDockablePane(PaneId, "Revit AI", new AssistantPaneProvider(new AssistantPane(_viewModel)));
@@ -188,6 +196,17 @@ public sealed class App : IExternalApplication
             LargeImage = LoadIcon("assistant-32.png"),
         };
         panel.AddItem(button);
+
+        panel.AddItem(new PushButtonData(
+            name: "RevitAi.SelfTest",
+            text: "Self-test",
+            assemblyName: typeof(App).Assembly.Location,
+            className: typeof(SelfTestCommand).FullName)
+        {
+            ToolTip = "Run the automatic checks on the open project. Everything is undone afterwards; a report is saved.",
+            Image = LoadIcon("assistant-16.png"),
+            LargeImage = LoadIcon("assistant-32.png"),
+        });
     }
 
     private static ImageSource LoadIcon(string fileName)

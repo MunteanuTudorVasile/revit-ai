@@ -1,4 +1,33 @@
-# Smoke Tests (manual, in Revit)
+# Smoke Tests (in Revit)
+
+## Step 1 — automatic self-test (1 click)
+
+Open a project (a copy is best), then **Add-Ins → Revit AI → Self-test**. About 50 checks run directly against the
+tools, validation, transactions and Revit's failure handling: context and model checks; walls, rooms, doors, windows and
+floors; preview and rollback; views, tags, dimensions, schedules, sheets, sections, elevations, 3D; grids and placement;
+deletion and refusals. Everything is undone at the end; the project is not changed (ADR-045).
+
+The report is saved as `%LOCALAPPDATA%\RevitAi\self-test-<date>.md`. **Send that file.**
+
+Checks skip themselves when the project lacks something (e.g. no door family or title block loaded); try a project that
+has these loaded.
+
+## Step 2 — manual checks (about 10 minutes)
+
+The self-test cannot cover the panel, OpenAI or the dispatcher. Do at least these:
+
+| # | Steps | Expected |
+|---|---|---|
+| M.1 | Start Revit → **Always Load**; **Add-Ins → Revit AI → Assistant**. | Panel opens; data notice and API key panel shown. |
+| M.2 | Accept the notice, save your API key. Select a wall. | Context shows `1 selected element` without clicking anything. |
+| M.3 | Ask "What did I select?" | Status "Reading your selection…", then the wall type. |
+| M.4 | Ask "Make this wall 500 mm longer." → **Preview** → **Apply**. | Wall unchanged until Apply; then 500 mm longer; one undo entry "Revit AI: …". |
+| M.5 | Press **Ctrl+Z**. | The wall is back. |
+| M.6 | Click **Română**, ask "Ce am selectat?" | Panel and answer in Romanian. |
+| M.7 | Start a wall command (Revit waiting for a click) and send a question. | Answer comes after you finish/cancel the command, or a clear "Revit didn't respond in time"; Revit never freezes. |
+
+The detailed lists below remain for deeper testing; the self-test already covers most of the modeling, documentation,
+QA, grid and safety rows.
 
 Run for **each supported Revit version** (2025, 2026) after building on Windows. Record the result and Revit build number.
 

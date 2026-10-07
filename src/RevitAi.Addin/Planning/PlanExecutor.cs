@@ -105,7 +105,7 @@ public sealed class PlanExecutor
         }
 
         affectedIds.AddRange(result.OtherIds ?? []);
-        return new StepResult(operation.Number, operation.ToolName, true, result.Outcome, failures.Warnings);
+        return new StepResult(operation.Number, operation.ToolName, true, result.Outcome, failures.Warnings, result.ElementId);
     }
 
     private static StepResult Failed(PlannedOperation operation, string reason, IReadOnlyList<string> warnings) =>
