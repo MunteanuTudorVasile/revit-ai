@@ -456,6 +456,29 @@ internal sealed class SelfTestScenarios
             });
             Assert(query.Elements.Any(e => e.Id == branch), "the 2900 mm test pipe was not found by its @length");
         });
+
+        _run.Check("merge_pipes (in line, elbow on the removed pipe is reconnected)", () =>
+        {
+            (long kept, long removed) = TwoPipes(new XYZ(0, 40_000, 3000), new XYZ(2000, 40_000, 3000), new XYZ(2200, 40_000, 3000), new XYZ(4880, 40_000, 3000));
+            (long riser, _) = TwoPipes(new XYZ(5000, 40_080, 3000), new XYZ(5000, 43_000, 3000), new XYZ(0, 50_000, 3000), new XYZ(1000, 50_000, 3000));
+            PlanRunResult corner = _run.ApplyOk(("connect_pipes_with_elbow", new { pipeId1 = (object)removed, pipeId2 = (object)riser }));
+            long elbowId = ElementOf(corner, 1);
+
+            _run.ApplyOk(("merge_pipes", new { pipeId1 = (object)kept, pipeId2 = (object)removed }));
+            Assert(_doc.GetElement(new ElementId(removed)) is null, "the second pipe was not removed");
+            var pipe = (Autodesk.Revit.DB.Plumbing.Pipe)_doc.GetElement(new ElementId(kept));
+            Near(5000, Mm(((LocationCurve)pipe.Location).Curve.Length), 1, "merged pipe length (mm)");
+            var elbow = (FamilyInstance)_doc.GetElement(new ElementId(elbowId));
+            bool toKept = elbow.MEPModel.ConnectorManager.Connectors.Cast<Connector>()
+                .Any(c => c.IsConnected && c.AllRefs.Cast<Connector>().Any(r => r.Owner.Id.Value == kept));
+            Assert(toKept, "the elbow is not connected to the merged pipe");
+        });
+
+        _run.Check("merge_pipes refuses parallel pipes side by side", () =>
+        {
+            (long a, long b) = TwoPipes(new XYZ(0, 60_000, 3000), new XYZ(2000, 60_000, 3000), new XYZ(2100, 60_200, 3000), new XYZ(4000, 60_200, 3000));
+            ExpectRefused(() => _run.Validate("merge_pipes", new { pipeId1 = (object)a, pipeId2 = (object)b }));
+        });
     }
 
     /// <summary>Two pipes from mm coordinates relative to the self-test origin (Z relative to the level).</summary>

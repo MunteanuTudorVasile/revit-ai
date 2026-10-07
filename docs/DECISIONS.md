@@ -624,3 +624,21 @@ Decision (from the capability research in `reports/`, not committed):
   system, piping systems Revit reports as not well connected; scope = elements, level or model.
 - **Pipe check** ribbon button: runs the check without AI on the selection (or the whole model), saves a Markdown report and can
   select the problem elements. First of the AI-free buttons.
+
+---
+
+## ADR-049 — Merge Two Pipes in a Straight Line
+
+Status: Accepted (2026-10-08)
+
+Decision: `merge_pipes` turns two in-line pipes into one pipe (the second MEP tool after ADR-047).
+
+- The geometry is Revit-free and unit-tested (`PipeMerge`): parallel within about 1°, centerlines at most 5 mm apart,
+  a gap of at most 3000 mm (overlaps are allowed), and one pipe must not lie inside the other.
+- Revit-side checks: same pipe type, same diameter and same system type (different diameters need a reducer, refused for now).
+  The meeting ends must be free, connected to each other, or joined by one coupling (a union fitting), which is removed.
+  A tee, valve or any other element there is refused.
+- Apply removes the second pipe (and the coupling), extends the first pipe to the second pipe's far end, and reconnects whatever
+  was connected there. The new length and the reconnection are verified; otherwise the plan rolls back.
+- Risk: LargeModification (Preview required), because the second pipe is removed and its own parameter values are lost.
+  The plan line says so.

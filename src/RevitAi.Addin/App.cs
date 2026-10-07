@@ -170,6 +170,7 @@ public sealed class App : IExternalApplication
         registry.Register(new CreateFloorTool(dispatcher, text));
         registry.Register(new MoveElementsTool(dispatcher, text));
         registry.Register(new ConnectPipesWithElbowTool(dispatcher, text));
+        registry.Register(new MergePipesTool(dispatcher, text));
         registry.Register(new DeleteElementsTool(dispatcher, text));
         registry.Register(new SetParametersTool(dispatcher, text));
         registry.Register(new ApplyViewTemplateTool(dispatcher, text));
